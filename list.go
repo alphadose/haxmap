@@ -85,7 +85,7 @@ func (l *List[K, V]) search(searchStart, item *ListElement[K, V]) (left, found, 
 	}
 
 	for {
-		if item.keyHash == found.keyHash { // key already exists
+		if item.keyHash == found.keyHash && item.key == found.key { // key already exists
 			return nil, found, nil
 		}
 
