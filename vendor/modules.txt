@@ -1,3 +1,0 @@
-# github.com/cespare/xxhash v1.1.0
-## explicit
-github.com/cespare/xxhash

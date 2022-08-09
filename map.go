@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"unsafe"
 
-	"github.com/cespare/xxhash"
+	"github.com/alphadose/haxmap/hash"
 )
 
 const (
@@ -52,23 +52,19 @@ func New[K hashable, V any](size ...uintptr) *HashMap[K, V] {
 	case "string":
 		m.Hasher = func(key K) uintptr {
 			sh := (*reflect.StringHeader)(unsafe.Pointer(&key))
-			return uintptr(xxhash.Sum64(*(*[]byte)(
-				unsafe.Pointer(
-					&reflect.SliceHeader{
-						Data: sh.Data,
-						Len:  sh.Len,
-						Cap:  sh.Len,
-					}))))
+			return hash.Sum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+				Data: sh.Data,
+				Len:  sh.Len,
+				Cap:  sh.Len,
+			})))
 		}
 	default:
 		m.Hasher = func(key K) uintptr {
-			return uintptr(xxhash.Sum64(*(*[]byte)(
-				unsafe.Pointer(
-					&reflect.SliceHeader{
-						Data: uintptr(unsafe.Pointer(&key)),
-						Len:  intSizeBytes,
-						Cap:  intSizeBytes,
-					}))))
+			return hash.Sum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+				Data: uintptr(unsafe.Pointer(&key)),
+				Len:  intSizeBytes,
+				Cap:  intSizeBytes,
+			})))
 		}
 	}
 	return m
@@ -127,6 +123,11 @@ func (m *HashMap[K, V]) indexElement(hashedKey uintptr) (data *hashMapData[K, V]
 	index := hashedKey >> data.keyshifts
 	ptr := (*unsafe.Pointer)(unsafe.Pointer(uintptr(data.data) + index*intSizeBytes))
 	item = (*ListElement[K, V])(atomic.LoadPointer(ptr))
+	for (item == nil || hashedKey < item.keyHash) && index > 0 {
+		index--
+		ptr = (*unsafe.Pointer)(unsafe.Pointer(uintptr(data.data) + index*intSizeBytes))
+		item = (*ListElement[K, V])(atomic.LoadPointer(ptr))
+	}
 	return data, item
 }
 
