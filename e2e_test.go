@@ -86,12 +86,8 @@ func TestGrow(t *testing.T) {
 	m := New[uint, uint]()
 	m.Grow(uintptr(63))
 
-	for { // make sure to wait for resize operation to finish
-		if m.resizing.Load() == 0 {
-			break
-		}
-		time.Sleep(time.Microsecond * 50)
-	}
+	// make sure to wait for resize operation to finish
+	time.Sleep(43 * time.Millisecond)
 
 	d := m.mapData()
 	if d.keyshifts != 58 {
@@ -111,15 +107,11 @@ func TestResize(t *testing.T) {
 		t.Error("Expected element count did not match.")
 	}
 
-	for { // make sure to wait for resize operation to finish
-		if m.resizing.Load() == 0 {
-			break
-		}
-		time.Sleep(time.Microsecond * 50)
-	}
+	// make sure to wait for resize operation to finish
+	time.Sleep(43 * time.Millisecond)
 
 	if m.Fillrate() != 34 {
-		t.Error("Expecting 34 percent fillrate.")
+		t.Error("Expecting 34 percent fillrate, got ", m.Fillrate())
 	}
 
 	for i := uintptr(0); i < itemCount; i++ {

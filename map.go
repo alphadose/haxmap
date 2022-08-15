@@ -35,22 +35,23 @@ type (
 
 	// HashMap implements a read optimized hash map.
 	HashMap[K hashable, V any] struct {
-		Hasher     func(K) uintptr
+		hasher     func(K) uintptr
+		growChan   chan uintptr
 		datamap    atomic.Pointer[hashMapData[K, V]] // pointer to a map instance that gets replaced if the map resizes
 		linkedlist atomic.Pointer[List[K, V]]        // key sorted linked list of elements
-		resizing   atomic.Uintptr                    // flag that marks a resizing operation in progress
 	}
 )
 
 // New returns a new HashMap instance with an optional specific initialization size.
 func New[K hashable, V any](size ...uintptr) *HashMap[K, V] {
-	m := &HashMap[K, V]{}
+	m := &HashMap[K, V]{growChan: make(chan uintptr, 3)}
+	go m.growRoutine() // asynchronously handle resizing operations
 	if len(size) > 0 {
 		m.allocate(size[0])
 	}
 	switch reflect.TypeOf(*new(K)).Name() {
 	case "string":
-		m.Hasher = func(key K) uintptr {
+		m.hasher = func(key K) uintptr {
 			sh := (*reflect.StringHeader)(unsafe.Pointer(&key))
 			return hash.Sum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
 				Data: sh.Data,
@@ -59,7 +60,7 @@ func New[K hashable, V any](size ...uintptr) *HashMap[K, V] {
 			})))
 		}
 	default:
-		m.Hasher = func(key K) uintptr {
+		m.hasher = func(key K) uintptr {
 			return hash.Sum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
 				Data: uintptr(unsafe.Pointer(&key)),
 				Len:  intSizeBytes,
@@ -68,6 +69,11 @@ func New[K hashable, V any](size ...uintptr) *HashMap[K, V] {
 		}
 	}
 	return m
+}
+
+// SetHasher sets the hash function to the one provided by the user
+func (m *HashMap[K, V]) SetHasher(hs func(K) uintptr) {
+	m.hasher = hs
 }
 
 // Len returns the number of key-value pairs within the map.
@@ -91,10 +97,8 @@ func (m *HashMap[K, V]) list() *List[K, V] {
 func (m *HashMap[K, V]) allocate(newSize uintptr) {
 	list := NewList[K, V]()
 	// atomic swap in case of another allocation happening concurrently
-	if m.linkedlist.CompareAndSwap(nil, list) {
-		if m.resizing.CompareAndSwap(0, 1) {
-			m.grow(newSize, false)
-		}
+	if m.linkedlist.CompareAndSwap(nil, list) && len(m.growChan) == 0 {
+		m.growChan <- newSize
 	}
 }
 
@@ -138,7 +142,7 @@ func (m *HashMap[K, V]) Del(key K) {
 		return
 	}
 
-	h := m.Hasher(key)
+	h := m.hasher(key)
 
 	var element *ListElement[K, V]
 ElementLoop:
@@ -183,31 +187,31 @@ func (m *HashMap[K, V]) deleteElement(element *ListElement[K, V]) {
 // Using interface{} adds a performance penalty.
 // Please consider using GetUintKey or GetStringKey instead.
 func (m *HashMap[K, V]) Get(key K) (value V, ok bool) {
-	h := m.Hasher(key)
+	h := m.hasher(key)
 	data, element := m.indexElement(h)
 	if data == nil {
-		return *new(V), false
+		ok = false
+		return
 	}
 
 	// inline HashMap.searchItem()
-	for element != nil {
+	for ; element != nil; element = element.Next() {
 		if element.keyHash == h && element.key == key {
-			return element.Value(), true
+			value, ok = element.Value(), true
+			return
+		} else if element.keyHash > h {
+			ok = false
+			return
 		}
-
-		if element.keyHash > h {
-			return *new(V), false
-		}
-
-		element = element.Next()
 	}
-	return *new(V), false
+	ok = false
+	return
 }
 
 // Set sets the value under the specified key to the map. An existing item for this key will be overwritten.
 // If a resizing operation is happening concurrently while calling Set, the item might show up in the map only after the resize operation is finished.
 func (m *HashMap[K, V]) Set(key K, value V) {
-	h := m.Hasher(key)
+	h := m.hasher(key)
 	element := &ListElement[K, V]{
 		key:     key,
 		keyHash: h,
@@ -230,10 +234,8 @@ func (m *HashMap[K, V]) insertListElement(element *ListElement[K, V]) bool {
 		}
 
 		count := data.addItemToIndex(element)
-		if m.resizeNeeded(data, count) {
-			if m.resizing.CompareAndSwap(0, 1) {
-				go m.grow(0, true)
-			}
+		if m.resizeNeeded(data, count) && len(m.growChan) == 0 {
+			m.growChan <- 0
 		}
 		return true
 	}
@@ -268,13 +270,15 @@ func (mapData *hashMapData[K, V]) addItemToIndex(item *ListElement[K, V]) uintpt
 // This function returns immediately, the resize operation is done in a goroutine.
 // No resizing is done in case of another resize operation already being in progress.
 func (m *HashMap[K, V]) Grow(newSize uintptr) {
-	if m.resizing.CompareAndSwap(0, 1) {
-		go m.grow(newSize, true)
+	if len(m.growChan) == 0 {
+		m.growChan <- newSize
 	}
 }
 
-func (m *HashMap[K, V]) grow(newSize uintptr, loop bool) {
-	for {
+// a single goroutine per haxmap handling resize operations
+func (m *HashMap[K, V]) growRoutine() {
+	for newSize := range m.growChan {
+	start:
 		data := m.mapData()
 		if newSize == 0 {
 			newSize = uintptr(len(data.index)) << 1
@@ -297,17 +301,12 @@ func (m *HashMap[K, V]) grow(newSize uintptr, loop bool) {
 
 		m.fillIndexItems(newdata) // make sure that the new index is up to date with the current state of the linked list
 
-		if !loop {
-			break
-		}
-
 		// check if a new resize needs to be done already
-		if !m.resizeNeeded(newdata, m.Len()) {
-			break
+		if m.resizeNeeded(newdata, m.Len()) {
+			newSize = 0 // 0 means double the current size
+			goto start
 		}
-		newSize = 0 // 0 means double the current size
 	}
-	m.resizing.CompareAndSwap(1, 0)
 }
 
 func (m *HashMap[K, V]) fillIndexItems(mapData *hashMapData[K, V]) {

@@ -12,7 +12,8 @@ func customStringHasher(s string) uintptr {
 func main() {
 	// initialize a string-string map with your custom hash function
 	// this overrides the default xxHash algorithm
-	m := &haxmap.HashMap[string, string]{Hasher: customStringHasher}
+	m := haxmap.New[string, string]()
+	m.SetHasher(customStringHasher)
 
 	m.Set("one", "1")
 	val, ok := m.Get("one")
