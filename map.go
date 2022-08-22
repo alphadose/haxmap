@@ -32,14 +32,14 @@ const (
 type (
 	// allowed map key types constraint
 	hashable interface {
-		int | int8 | int16 | int32 | int64 | uint | uint8 | uint16 | uint32 | uint64 | uintptr | float32 | float64 | string | complex64 | complex128
+		~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr | ~float32 | ~float64 | ~string | ~complex64 | ~complex128
 	}
 
 	hashMapData[K hashable, V any] struct {
-		keyshifts uintptr              // Pointer size - log2 of array size, to be used as index in the data array
-		count     atomic.Uintptr       // count of filled elements in the slice
-		data      unsafe.Pointer       // pointer to slice data array
-		index     []*ListElement[K, V] // storage for the slice for the garbage collector to not clean it up
+		data      unsafe.Pointer // pointer to slice data array
+		keyshifts uintptr        // Pointer size - log2 of array size, to be used as index in the data array
+		length    uintptr        // current length
+		count     atomic.Uintptr // count of filled elements in the slice
 	}
 
 	// HashMap implements a read optimized hash map.
@@ -155,18 +155,15 @@ func (m *HashMap[K, V]) allocate(newSize uintptr) {
 // Fillrate returns the fill rate of the map as an percentage integer.
 func (m *HashMap[K, V]) Fillrate() uintptr {
 	data := m.mapData()
-	count := data.count.Load()
-	l := uintptr(len(data.index))
-	return (count * 100) / l
+	return (data.count.Load() * 100) / data.length
 }
 
 func (m *HashMap[K, V]) resizeNeeded(data *hashMapData[K, V], count uintptr) bool {
-	l := uintptr(len(data.index))
+	l := data.length
 	if l == 0 {
 		return false
 	}
-	fillRate := (count * 100) / l
-	return fillRate > MaxFillRate
+	return (count*100)/l > MaxFillRate
 }
 
 func (m *HashMap[K, V]) indexElement(hashedKey uintptr) (data *hashMapData[K, V], item *ListElement[K, V]) {
@@ -331,18 +328,15 @@ func (m *HashMap[K, V]) growRoutine() {
 	start:
 		data := m.mapData()
 		if newSize == 0 {
-			newSize = uintptr(len(data.index)) << 1
+			newSize = data.length << 1
 		} else {
 			newSize = roundUpPower2(newSize)
 		}
 
-		index := make([]*ListElement[K, V], newSize)
-		header := (*reflect.SliceHeader)(unsafe.Pointer(&index))
-
 		newdata := &hashMapData[K, V]{
 			keyshifts: strconv.IntSize - log2(newSize),
-			data:      unsafe.Pointer(header.Data), // use address of slice data storage
-			index:     index,
+			data:      unsafe.Pointer(&make([]*ListElement[K, V], newSize)[0]), // use address of slice data storage
+			length:    newSize,
 		}
 
 		m.fillIndexItems(newdata) // initialize new index slice with longer keys
