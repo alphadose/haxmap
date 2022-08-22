@@ -121,20 +121,16 @@ func New[K hashable, V any](size ...uintptr) *HashMap[K, V] {
 	return m
 }
 
-func (m *HashMap[K, V]) indexElement(hashedKey uintptr) (data *hashMapData[K, V], item *ListElement[K, V]) {
-	data = m.datamap.Load()
-	if data == nil {
-		return nil, nil
-	}
-	index := hashedKey >> data.keyshifts
-	ptr := (*unsafe.Pointer)(unsafe.Pointer(uintptr(data.data) + index*intSizeBytes))
-	item = (*ListElement[K, V])(atomic.LoadPointer(ptr))
+func (mapData *hashMapData[K, V]) indexElement(hashedKey uintptr) *ListElement[K, V] {
+	index := hashedKey >> mapData.keyshifts
+	ptr := (*unsafe.Pointer)(unsafe.Pointer(uintptr(mapData.data) + index*intSizeBytes))
+	item := (*ListElement[K, V])(atomic.LoadPointer(ptr))
 	for (item == nil || hashedKey < item.keyHash) && index > 0 {
 		index--
-		ptr = (*unsafe.Pointer)(unsafe.Pointer(uintptr(data.data) + index*intSizeBytes))
+		ptr = (*unsafe.Pointer)(unsafe.Pointer(uintptr(mapData.data) + index*intSizeBytes))
 		item = (*ListElement[K, V])(atomic.LoadPointer(ptr))
 	}
-	return data, item
+	return item
 }
 
 // Del deletes the key from the map.
@@ -148,7 +144,7 @@ func (m *HashMap[K, V]) Del(key K) {
 
 	var element *ListElement[K, V]
 ElementLoop:
-	for _, element = m.indexElement(h); element != nil; element = element.Next() {
+	for element = m.datamap.Load().indexElement(h); element != nil; element = element.Next() {
 		if element.keyHash == h && element.key == key {
 			break ElementLoop
 		}
@@ -190,11 +186,7 @@ func (m *HashMap[K, V]) deleteElement(element *ListElement[K, V]) {
 // Please consider using GetUintKey or GetStringKey instead.
 func (m *HashMap[K, V]) Get(key K) (value V, ok bool) {
 	h := m.hasher(key)
-	data, element := m.indexElement(h)
-	if data == nil {
-		ok = false
-		return
-	}
+	element := m.datamap.Load().indexElement(h)
 
 	// inline HashMap.searchItem()
 	for ; element != nil; element = element.Next() {
@@ -224,7 +216,8 @@ func (m *HashMap[K, V]) Set(key K, value V) {
 
 func (m *HashMap[K, V]) insertListElement(element *ListElement[K, V]) bool {
 	for {
-		data, existing := m.indexElement(element.keyHash)
+		data := m.datamap.Load()
+		existing := data.indexElement(element.keyHash)
 		if data == nil {
 			m.allocate(DefaultSize)
 			continue // read mapdata and slice item again
