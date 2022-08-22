@@ -20,10 +20,19 @@ const (
 	intSizeBytes = strconv.IntSize >> 3
 )
 
+// hash input allowed sizes
+const (
+	byteSize = 1 << iota
+	wordSize
+	dwordSize
+	qwordSize
+	owordSize
+)
+
 type (
 	// allowed map key types constraint
 	hashable interface {
-		int | uint | uintptr | string
+		int | int8 | int16 | int32 | int64 | uint | uint8 | uint16 | uint32 | uint64 | uintptr | float32 | float64 | string | complex64 | complex128
 	}
 
 	hashMapData[K hashable, V any] struct {
@@ -49,22 +58,63 @@ func New[K hashable, V any](size ...uintptr) *HashMap[K, V] {
 	if len(size) > 0 {
 		m.allocate(size[0])
 	}
-	switch reflect.TypeOf(*new(K)).Name() {
-	case "string":
+	// default hash functions
+	switch any(*new(K)).(type) {
+	case int, uint, uintptr:
+		m.hasher = func(key K) uintptr {
+			return hash.Sum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+				Data: uintptr(unsafe.Pointer(&key)),
+				Len:  intSizeBytes,
+				Cap:  intSizeBytes,
+			})))
+		}
+	case int8, uint8:
+		m.hasher = func(key K) uintptr {
+			return hash.Sum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+				Data: uintptr(unsafe.Pointer(&key)),
+				Len:  byteSize,
+				Cap:  byteSize,
+			})))
+		}
+	case int16, uint16:
+		m.hasher = func(key K) uintptr {
+			return hash.Sum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+				Data: uintptr(unsafe.Pointer(&key)),
+				Len:  wordSize,
+				Cap:  wordSize,
+			})))
+		}
+	case int32, uint32, float32:
+		m.hasher = func(key K) uintptr {
+			return hash.Sum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+				Data: uintptr(unsafe.Pointer(&key)),
+				Len:  dwordSize,
+				Cap:  dwordSize,
+			})))
+		}
+	case int64, uint64, float64, complex64:
+		m.hasher = func(key K) uintptr {
+			return hash.Sum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+				Data: uintptr(unsafe.Pointer(&key)),
+				Len:  qwordSize,
+				Cap:  qwordSize,
+			})))
+		}
+	case complex128:
+		m.hasher = func(key K) uintptr {
+			return hash.Sum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+				Data: uintptr(unsafe.Pointer(&key)),
+				Len:  owordSize,
+				Cap:  owordSize,
+			})))
+		}
+	case string:
 		m.hasher = func(key K) uintptr {
 			sh := (*reflect.StringHeader)(unsafe.Pointer(&key))
 			return hash.Sum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
 				Data: sh.Data,
 				Len:  sh.Len,
 				Cap:  sh.Len,
-			})))
-		}
-	default:
-		m.hasher = func(key K) uintptr {
-			return hash.Sum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-				Data: uintptr(unsafe.Pointer(&key)),
-				Len:  intSizeBytes,
-				Cap:  intSizeBytes,
 			})))
 		}
 	}

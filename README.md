@@ -14,8 +14,6 @@ $ go get github.com/alphadose/haxmap
 
 ## Usage
 
-Supported map key types -> `int`, `uint`, `uintptr`, `string`
-
 ```go
 package main
 
@@ -115,7 +113,6 @@ import (
 
 // your custom hash function
 // the hash function signature must adhere to `func(keyType) uintptr`
-// where keyType ∈ {int, uint, uintptr, string}
 func customStringHasher(s string) uintptr {
 	return uintptr(len(s))
 }
