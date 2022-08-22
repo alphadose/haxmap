@@ -32,7 +32,7 @@ const (
 type (
 	// allowed map key types constraint
 	hashable interface {
-		~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr | ~float32 | ~float64 | ~string | ~complex64 | ~complex128
+		int | int8 | int16 | int32 | int64 | uint | uint8 | uint16 | uint32 | uint64 | uintptr | float32 | float64 | string | complex64 | complex128
 	}
 
 	hashMapData[K hashable, V any] struct {
@@ -121,53 +121,8 @@ func New[K hashable, V any](size ...uintptr) *HashMap[K, V] {
 	return m
 }
 
-// SetHasher sets the hash function to the one provided by the user
-func (m *HashMap[K, V]) SetHasher(hs func(K) uintptr) {
-	m.hasher = hs
-}
-
-// Len returns the number of key-value pairs within the map.
-func (m *HashMap[K, V]) Len() uintptr {
-	l := m.list()
-	if l != nil {
-		return l.Len()
-	} else {
-		return 0
-	}
-}
-
-func (m *HashMap[K, V]) mapData() *hashMapData[K, V] {
-	return m.datamap.Load()
-}
-
-func (m *HashMap[K, V]) list() *List[K, V] {
-	return m.linkedlist.Load()
-}
-
-func (m *HashMap[K, V]) allocate(newSize uintptr) {
-	list := NewList[K, V]()
-	// atomic swap in case of another allocation happening concurrently
-	if m.linkedlist.CompareAndSwap(nil, list) && len(m.growChan) == 0 {
-		m.growChan <- newSize
-	}
-}
-
-// Fillrate returns the fill rate of the map as an percentage integer.
-func (m *HashMap[K, V]) Fillrate() uintptr {
-	data := m.mapData()
-	return (data.count.Load() * 100) / data.length
-}
-
-func (m *HashMap[K, V]) resizeNeeded(data *hashMapData[K, V], count uintptr) bool {
-	l := data.length
-	if l == 0 {
-		return false
-	}
-	return (count*100)/l > MaxFillRate
-}
-
 func (m *HashMap[K, V]) indexElement(hashedKey uintptr) (data *hashMapData[K, V], item *ListElement[K, V]) {
-	data = m.mapData()
+	data = m.datamap.Load()
 	if data == nil {
 		return nil, nil
 	}
@@ -184,7 +139,7 @@ func (m *HashMap[K, V]) indexElement(hashedKey uintptr) (data *hashMapData[K, V]
 
 // Del deletes the key from the map.
 func (m *HashMap[K, V]) Del(key K) {
-	list := m.list()
+	list := m.linkedlist.Load()
 	if list == nil {
 		return
 	}
@@ -213,7 +168,7 @@ ElementLoop:
 // deleteElement deletes an element from index
 func (m *HashMap[K, V]) deleteElement(element *ListElement[K, V]) {
 	for {
-		data := m.mapData()
+		data := m.datamap.Load()
 		index := element.keyHash >> data.keyshifts
 		ptr := (*unsafe.Pointer)(unsafe.Pointer(uintptr(data.data) + index*intSizeBytes))
 
@@ -223,7 +178,7 @@ func (m *HashMap[K, V]) deleteElement(element *ListElement[K, V]) {
 		}
 		atomic.CompareAndSwapPointer(ptr, unsafe.Pointer(element), unsafe.Pointer(next))
 
-		currentdata := m.mapData()
+		currentdata := m.datamap.Load()
 		if data == currentdata { // check that no resize happened
 			break
 		}
@@ -274,7 +229,7 @@ func (m *HashMap[K, V]) insertListElement(element *ListElement[K, V]) bool {
 			m.allocate(DefaultSize)
 			continue // read mapdata and slice item again
 		}
-		list := m.list()
+		list := m.linkedlist.Load()
 
 		if !list.AddOrUpdate(element, existing) {
 			continue // a concurrent add did interfere, try again
@@ -312,6 +267,36 @@ func (mapData *hashMapData[K, V]) addItemToIndex(item *ListElement[K, V]) uintpt
 	}
 }
 
+func (m *HashMap[K, V]) fillIndexItems(mapData *hashMapData[K, V]) {
+	list := m.linkedlist.Load()
+	if list == nil {
+		return
+	}
+	first := list.First()
+	item := first
+	lastIndex := uintptr(0)
+
+	for item != nil {
+		index := item.keyHash >> mapData.keyshifts
+		if item == first || index != lastIndex { // store item with smallest hash key for every index
+			mapData.addItemToIndex(item)
+			lastIndex = index
+		}
+		item = item.Next()
+	}
+}
+
+// ForEach iterates over key-value pairs and executes the lambda provided for each such pair.
+func (m *HashMap[K, V]) ForEach(lambda func(K, V)) {
+	list := m.linkedlist.Load()
+	if list == nil {
+		return
+	}
+	for item := list.First(); item != nil; item = item.Next() {
+		lambda(item.key, item.Value())
+	}
+}
+
 // Grow resizes the hashmap to a new size, gets rounded up to next power of 2.
 // To double the size of the hashmap use newSize 0.
 // This function returns immediately, the resize operation is done in a goroutine.
@@ -322,11 +307,32 @@ func (m *HashMap[K, V]) Grow(newSize uintptr) {
 	}
 }
 
+// SetHasher sets the hash function to the one provided by the user
+func (m *HashMap[K, V]) SetHasher(hs func(K) uintptr) {
+	m.hasher = hs
+}
+
+// Len returns the number of key-value pairs within the map.
+func (m *HashMap[K, V]) Len() uintptr {
+	l := m.linkedlist.Load()
+	if l != nil {
+		return l.Len()
+	} else {
+		return 0
+	}
+}
+
+// Fillrate returns the fill rate of the map as an percentage integer.
+func (m *HashMap[K, V]) Fillrate() uintptr {
+	data := m.datamap.Load()
+	return (data.count.Load() * 100) / data.length
+}
+
 // a single goroutine per haxmap handling resize operations
 func (m *HashMap[K, V]) growRoutine() {
 	for newSize := range m.growChan {
 	start:
-		data := m.mapData()
+		data := m.datamap.Load()
 		if newSize == 0 {
 			newSize = data.length << 1
 		} else {
@@ -353,32 +359,18 @@ func (m *HashMap[K, V]) growRoutine() {
 	}
 }
 
-func (m *HashMap[K, V]) fillIndexItems(mapData *hashMapData[K, V]) {
-	list := m.list()
-	if list == nil {
-		return
-	}
-	first := list.First()
-	item := first
-	lastIndex := uintptr(0)
-
-	for item != nil {
-		index := item.keyHash >> mapData.keyshifts
-		if item == first || index != lastIndex { // store item with smallest hash key for every index
-			mapData.addItemToIndex(item)
-			lastIndex = index
-		}
-		item = item.Next()
+func (m *HashMap[K, V]) allocate(newSize uintptr) {
+	list := NewList[K, V]()
+	// atomic swap in case of another allocation happening concurrently
+	if m.linkedlist.CompareAndSwap(nil, list) && len(m.growChan) == 0 {
+		m.growChan <- newSize
 	}
 }
 
-// ForEach iterates over key-value pairs and executes the lambda provided for each such pair.
-func (m *HashMap[K, V]) ForEach(lambda func(K, V)) {
-	list := m.list()
-	if list == nil {
-		return
+func (m *HashMap[K, V]) resizeNeeded(data *hashMapData[K, V], count uintptr) bool {
+	l := data.length
+	if l == 0 {
+		return false
 	}
-	for item := list.First(); item != nil; item = item.Next() {
-		lambda(item.key, item.Value())
-	}
+	return (count*100)/l > MaxFillRate
 }

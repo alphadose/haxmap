@@ -89,7 +89,7 @@ func TestGrow(t *testing.T) {
 	// make sure to wait for resize operation to finish
 	time.Sleep(43 * time.Millisecond)
 
-	d := m.mapData()
+	d := m.datamap.Load()
 	if d.keyshifts != 58 {
 		t.Error("Grow operation did not result in correct internal map data structure.")
 	}
