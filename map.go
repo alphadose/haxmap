@@ -10,6 +10,13 @@ import (
 )
 
 const (
+	// hash input allowed sizes
+	byteSize = 1 << iota
+	wordSize
+	dwordSize
+	qwordSize
+	owordSize
+
 	// DefaultSize is the default size for a zero allocated map
 	DefaultSize = 8
 
@@ -18,15 +25,6 @@ const (
 
 	// intSizeBytes is the size in byte of an int or uint value.
 	intSizeBytes = strconv.IntSize >> 3
-)
-
-// hash input allowed sizes
-const (
-	byteSize = 1 << iota
-	wordSize
-	dwordSize
-	qwordSize
-	owordSize
 )
 
 type (
@@ -145,9 +143,9 @@ func (m *HashMap[K, V]) Del(key K) {
 
 	h := m.hasher(key)
 
-	var element *ListElement[K, V]
+	element := m.datamap.Load().indexElement(h)
 ElementLoop:
-	for element = m.datamap.Load().indexElement(h); element != nil; element = element.Next() {
+	for ; element != nil; element = element.Next() {
 		if element.keyHash == h && element.key == key {
 			break ElementLoop
 		}
@@ -179,7 +177,7 @@ func (m *HashMap[K, V]) deleteElement(element *ListElement[K, V]) {
 
 		currentdata := m.datamap.Load()
 		if data == currentdata { // check that no resize happened
-			break
+			return
 		}
 	}
 }
