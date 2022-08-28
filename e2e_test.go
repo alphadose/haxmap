@@ -84,7 +84,7 @@ func TestGet(t *testing.T) {
 
 func TestGrow(t *testing.T) {
 	m := New[uint, uint]()
-	m.Grow(uintptr(63))
+	m.Grow(63)
 
 	// make sure to wait for resize operation to finish
 	time.Sleep(43 * time.Millisecond)
@@ -92,33 +92,6 @@ func TestGrow(t *testing.T) {
 	d := m.datamap.Load()
 	if d.keyshifts != 58 {
 		t.Error("Grow operation did not result in correct internal map data structure.")
-	}
-}
-
-func TestResize(t *testing.T) {
-	m := New[uintptr, *Animal](2)
-	itemCount := uintptr(50)
-
-	for i := uintptr(0); i < itemCount; i++ {
-		m.Set(i, &Animal{strconv.Itoa(int(i))})
-	}
-
-	if m.Len() != itemCount {
-		t.Error("Expected element count did not match.")
-	}
-
-	// make sure to wait for resize operation to finish
-	time.Sleep(43 * time.Millisecond)
-
-	if m.Fillrate() != 34 {
-		t.Error("Expecting 34 percent fillrate, got ", m.Fillrate())
-	}
-
-	for i := uintptr(0); i < itemCount; i++ {
-		_, ok := m.Get(i)
-		if !ok {
-			t.Error("Getting inserted item failed.")
-		}
 	}
 }
 
@@ -138,6 +111,12 @@ func TestDelete(t *testing.T) {
 	m.Del(1)
 	m.Del(1)
 	m.Del(2)
+
+	// traverse the map once to remove deleted nodes
+	// this is how haxmap lazily removes deleted nodes
+	// for k := m.listHead; k != nil; k = k.next() {
+	// }
+
 	if m.Len() != 0 {
 		t.Error("map should be empty.")
 	}

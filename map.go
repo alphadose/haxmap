@@ -18,7 +18,7 @@ const (
 	owordSize
 
 	// DefaultSize is the default size for a zero allocated map
-	DefaultSize = 8
+	DefaultSize = 256
 
 	// MaxFillRate is the maximum fill rate for the slice before a resize  will happen.
 	MaxFillRate = 50
@@ -40,10 +40,10 @@ type (
 	}
 
 	hashMapData[K hashable, V any] struct {
-		data      unsafe.Pointer // pointer to slice data array
 		keyshifts uintptr        // Pointer size - log2 of array size, to be used as index in the data array
-		length    uintptr        // current length of array
 		count     atomic.Uintptr // count of filled elements in the slice
+		data      unsafe.Pointer // pointer to slice data array
+		index     []*element[K, V]
 	}
 
 	// HashMap implements a read optimized hash map.
@@ -158,7 +158,7 @@ loop:
 	if element == nil {
 		return
 	}
-
+	element.remove()
 	for {
 		data := m.datamap.Load()
 		index := element.keyHash >> data.keyshifts
@@ -213,7 +213,7 @@ func (m *HashMap[K, V]) Set(key K, value V) {
 		}
 
 		count := data.addItemToIndex(alloc)
-		if resizeNeeded(data.length, count) && m.resizing.CompareAndSwap(notResizing, resizingInProgress) {
+		if resizeNeeded(uintptr(len(data.index)), count) && m.resizing.CompareAndSwap(notResizing, resizingInProgress) {
 			go m.grow(0, true)
 		}
 		return
@@ -289,7 +289,7 @@ func (m *HashMap[K, V]) Len() uintptr {
 // Fillrate returns the fill rate of the map as an percentage integer.
 func (m *HashMap[K, V]) Fillrate() uintptr {
 	data := m.datamap.Load()
-	return (data.count.Load() * 100) / data.length
+	return (data.count.Load() * 100) / uintptr(len(data.index))
 }
 
 func (m *HashMap[K, V]) allocate(newSize uintptr) {
@@ -305,15 +305,18 @@ func (m *HashMap[K, V]) grow(newSize uintptr, loop bool) {
 	for {
 		currentStore := m.datamap.Load()
 		if newSize == 0 {
-			newSize = currentStore.length << 1
+			newSize = uintptr(len(currentStore.index)) << 1
 		} else {
 			newSize = roundUpPower2(newSize)
 		}
 
+		index := make([]*element[K, V], newSize, newSize)
+		header := (*reflect.SliceHeader)(unsafe.Pointer(&index))
+
 		newdata := &hashMapData[K, V]{
 			keyshifts: strconv.IntSize - log2(newSize),
-			data:      unsafe.Pointer(&make([]*element[K, V], newSize)[0]), // use address of slice data storage
-			length:    newSize,
+			data:      unsafe.Pointer(header.Data), // use address of slice data storage
+			index:     index,
 		}
 
 		m.fillIndexItems(newdata) // initialize new index slice with longer keys
@@ -327,7 +330,7 @@ func (m *HashMap[K, V]) grow(newSize uintptr, loop bool) {
 		}
 
 		// check if a new resize needs to be done already
-		if !resizeNeeded(newdata.length, uintptr(m.Len())) {
+		if !resizeNeeded(newSize, uintptr(m.Len())) {
 			return
 		}
 		newSize = 0 // 0 means double the current size
