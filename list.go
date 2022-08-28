@@ -4,166 +4,165 @@ import (
 	"sync/atomic"
 )
 
-const maxUintptr = ^uintptr(0)
+// mark a node for being deleted, also used as list_head
+// the search() function skips nodes with `keyHash = marked`
+const marked = ^uintptr(0)
 
-// List is a sorted doubly linked list.
-type List[K hashable, V any] struct {
-	count atomic.Uintptr
-	head  *ListElement[K, V]
+// Below implementation is a lock-free linked list based on https://www.cl.cam.ac.uk/research/srg/netos/papers/2001-caslists.pdf by Timothy L. Harris
+// Performance improvements suggested in https://arxiv.org/pdf/2010.15755.pdf were also added
+
+// newListHead returns the new head of any list
+func newListHead[K hashable, V any]() *element[K, V] {
+	ptr := atomic.Pointer[element[K, V]]{}
+	ptr.Store(nil)
+	val := atomic.Pointer[V]{}
+	val.Store(new(V))
+	return &element[K, V]{marked, *new(K), ptr, val}
 }
 
-// NewList returns an initialized list.
-func NewList[K hashable, V any]() *List[K, V] {
-	return &List[K, V]{head: &ListElement[K, V]{}}
+// a single node in the list
+type element[K hashable, V any] struct {
+	keyHash uintptr
+	key     K
+	// The next element in the list. If this pointer has the marked flag set it means THIS element, not the next one, is deleted.
+	nextPtr atomic.Pointer[element[K, V]]
+	value   atomic.Pointer[V]
 }
 
-// ListElement is an element of a list.
-type ListElement[K hashable, V any] struct {
-	deleted         uint32 // marks the item as deleting or deleted
-	keyHash         uintptr
-	key             K
-	previousElement atomic.Pointer[ListElement[K, V]] // is nil for the first item in list
-	nextElement     atomic.Pointer[ListElement[K, V]] // is nil for the last item in list
-	value           atomic.Pointer[V]
+// next returns the next element
+// this also deletes all marked elements while traversing the list
+func (self *element[K, V]) next() *element[K, V] {
+	for nextElement := self.nextPtr.Load(); nextElement != nil; {
+		// if our next element contains marked that means WE are deleted, and we can just return the next-next element
+		if nextElement.keyHash == marked {
+			return nextElement.next()
+		}
+		// if our next element is itself deleted (by the same criteria) then we will just replace
+		// it with its next() (which should be the first node behind it that isn't itself deleted) and then check again
+		if nextElement.isDeleted() {
+			self.nextPtr.CompareAndSwap(nextElement, nextElement.next())
+			nextElement = self.nextPtr.Load()
+		} else {
+			return nextElement
+		}
+	}
+	return nil
 }
 
-// Value returns the value of the list item.
-func (e *ListElement[K, V]) Value() (value V) {
-	value = *e.value.Load()
-	return
+// addBefore inserts an element before the specified element
+func (self *element[K, V]) addBefore(t uintptr, allocatedElement, before *element[K, V]) bool {
+	if self.next() != before {
+		return false
+	}
+	allocatedElement.nextPtr.Store(before)
+	return self.nextPtr.CompareAndSwap(before, allocatedElement)
 }
 
-// Next returns the item on the right.
-func (e *ListElement[K, V]) Next() *ListElement[K, V] {
-	return e.nextElement.Load()
+// inject updates an existing value in the list if present or adds a new entry
+func (self *element[K, V]) inject(c uintptr, key K, value *V) *element[K, V] {
+	var alloc, left, curr, right *element[K, V]
+	for {
+		left, curr, right = self.search(c, key)
+		if curr != nil {
+			curr.value.Store(value)
+			return curr
+		}
+		if left != nil {
+			if alloc == nil {
+				alloc = &element[K, V]{keyHash: c, key: key}
+				alloc.value.Store(value)
+			}
+			if left.addBefore(c, alloc, right) {
+				return alloc
+			}
+		}
+	}
 }
 
-// Previous returns the item on the left.
-func (e *ListElement[K, V]) Previous() *ListElement[K, V] {
-	return e.previousElement.Load()
+// search for an element in the list and return left_element, searched_element and right_element respectively
+func (self *element[K, V]) search(c uintptr, key K) (*element[K, V], *element[K, V], *element[K, V]) {
+	var (
+		left, right *element[K, V]
+		curr        = self
+	)
+	for {
+		if curr == nil {
+			return left, curr, right
+		}
+		right = curr.next()
+		if curr.keyHash != marked {
+			if c < curr.keyHash {
+				right = curr
+				curr = nil
+				return left, curr, right
+			} else if c == curr.keyHash && key == curr.key {
+				return left, curr, right
+			}
+		}
+		left = curr
+		curr = left.next()
+		right = nil
+	}
 }
 
-// setValue sets the value of the item.
-// The value needs to be wrapped in unsafe.Pointer already.
-func (e *ListElement[K, V]) setValue(value *V) {
-	e.value.Store(value)
+// fastSearch is a fast version of the search returning only the desired element
+// this search mechanism also skips over deleted elements and does not try to remove them
+func (self *element[K, V]) fastSearch(c uintptr, key K) *element[K, V] {
+	var (
+		left *element[K, V]
+		curr = self
+	)
+	for curr != nil {
+		if curr.keyHash < c || curr.keyHash == marked {
+			left = curr
+			curr = left.next()
+			continue
+		}
+		if curr.keyHash == c && curr.key == key {
+			return curr
+		}
+		if curr.keyHash > c {
+			return nil
+		}
+	}
+	return nil
 }
 
-// Len returns the number of elements within the list.
-func (l *List[K, V]) Len() uintptr {
-	return l.count.Load()
+// remove removes the current node
+func (self *element[K, V]) remove() bool {
+	for {
+		if self.next() == nil {
+			return false
+		}
+		if self.add(marked) {
+			self.next()
+			return true
+		}
+	}
 }
 
-// First returns the first item of the list.
-func (l *List[K, V]) First() *ListElement[K, V] {
-	return l.head.Next()
-}
-
-// AddOrUpdate adds or updates an item to the list.
-func (l *List[K, V]) AddOrUpdate(element *ListElement[K, V], searchStart *ListElement[K, V]) bool {
-	left, found, right := l.search(searchStart, element)
-	if found != nil { // existing item found
-		found.setValue(element.value.Load()) // update the value
+// if current element is deleted
+func (self *element[K, V]) isDeleted() bool {
+	next := self.nextPtr.Load()
+	if next == nil {
+		return false
+	}
+	if next.keyHash == marked {
 		return true
 	}
-	return l.insertAt(element, left, right)
+	return false
 }
 
-func (l *List[K, V]) search(searchStart, item *ListElement[K, V]) (left, found, right *ListElement[K, V]) {
-	if searchStart != nil && item.keyHash < searchStart.keyHash { // key would remain left from item? {
-		searchStart = nil // start search at head
-	}
-
-	if searchStart == nil { // start search at head?
-		left = l.head
-		found = left.Next()
-		if found == nil { // no items beside head?
-			return nil, nil, nil
-		}
-	} else {
-		found = searchStart
-	}
-
+func (self *element[K, V]) add(c uintptr) bool {
+	alloc := &element[K, V]{keyHash: c}
 	for {
-		if item.keyHash == found.keyHash && item.key == found.key { // key already exists
-			return nil, found, nil
+		// If we are deleted then we do not allow adding new children.
+		if self.isDeleted() {
+			return false
 		}
-
-		if item.keyHash < found.keyHash { // new item needs to be inserted before the found value
-			if l.head == left {
-				return nil, nil, found
-			}
-			return left, nil, found
-		}
-
-		// go to next element in sorted linked list
-		left = found
-		found = left.Next()
-		if found == nil { // no more items on the right
-			return left, nil, nil
+		// If we succeed in adding before our perceived next, just return true.
+		if self.addBefore(c, alloc, self.next()) {
+			return true
 		}
 	}
-}
-
-func (l *List[K, V]) insertAt(element *ListElement[K, V], left *ListElement[K, V], right *ListElement[K, V]) bool {
-	if left == nil {
-		//element->previous = head
-		element.previousElement.Store(l.head)
-		//element->next = right
-		element.nextElement.Store(right)
-
-		// insert at head, head-->next = element
-		if !l.head.nextElement.CompareAndSwap(right, element) {
-			return false // item was modified concurrently
-		}
-
-		//right->previous = element
-		if right != nil {
-			if !right.previousElement.CompareAndSwap(l.head, element) {
-				return false // item was modified concurrently
-			}
-		}
-	} else {
-		element.previousElement.Store(left)
-		element.nextElement.Store(right)
-
-		if !left.nextElement.CompareAndSwap(right, element) {
-			return false // item was modified concurrently
-		}
-
-		if right != nil {
-			if !right.previousElement.CompareAndSwap(left, element) {
-				return false // item was modified concurrently
-			}
-		}
-	}
-
-	l.count.Add(1)
-	return true
-}
-
-// Delete deletes an element from the list.
-func (l *List[K, V]) Delete(element *ListElement[K, V]) {
-	if !atomic.CompareAndSwapUint32(&element.deleted, 0, 1) {
-		return // concurrent delete of the item in progress
-	}
-
-	for {
-		left := element.Previous()
-		right := element.Next()
-
-		if left == nil { // element is first item in list?
-			if !l.head.nextElement.CompareAndSwap(element, right) {
-				continue // now head item was inserted concurrently
-			}
-		} else if !left.nextElement.CompareAndSwap(element, right) {
-			continue // item was modified concurrently
-		}
-		if right != nil {
-			right.previousElement.CompareAndSwap(element, left)
-		}
-		break
-	}
-
-	l.count.Add(maxUintptr) // decrease counter
 }

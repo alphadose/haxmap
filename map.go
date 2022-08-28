@@ -36,23 +36,25 @@ type (
 	hashMapData[K hashable, V any] struct {
 		data      unsafe.Pointer // pointer to slice data array
 		keyshifts uintptr        // Pointer size - log2 of array size, to be used as index in the data array
-		length    uintptr        // current length
+		length    uintptr        // current length of array
 		count     atomic.Uintptr // count of filled elements in the slice
 	}
 
 	// HashMap implements a read optimized hash map.
 	HashMap[K hashable, V any] struct {
-		linkedlist *List[K, V] // key sorted linked list of elements
-		hasher     func(K) uintptr
-		growChan   chan uintptr
-		datamap    atomic.Pointer[hashMapData[K, V]] // pointer to a map instance that gets replaced if the map resizes
+		listHead *element[K, V] // key sorted linked list of elements
+		hasher   func(K) uintptr
+		growChan chan uintptr
+		numItems atomic.Int32
+		datamap  atomic.Pointer[hashMapData[K, V]] // pointer to a map instance that gets replaced if the map resizes
 
 	}
 )
 
 // New returns a new HashMap instance with an optional specific initialization size.
 func New[K hashable, V any](size ...uintptr) *HashMap[K, V] {
-	m := &HashMap[K, V]{linkedlist: NewList[K, V](), growChan: make(chan uintptr, 3)}
+	m := &HashMap[K, V]{listHead: newListHead[K, V](), growChan: make(chan uintptr, 3)}
+	m.numItems.Store(0)
 	go m.growRoutine() // asynchronously handle resizing operations
 	if len(size) > 0 {
 		m.allocate(size[0])
@@ -122,30 +124,26 @@ func New[K hashable, V any](size ...uintptr) *HashMap[K, V] {
 	return m
 }
 
-func (mapData *hashMapData[K, V]) indexElement(hashedKey uintptr) *ListElement[K, V] {
+// returns the index of a hash key, returns `nil` if absent
+func (mapData *hashMapData[K, V]) indexElement(hashedKey uintptr) *element[K, V] {
 	index := hashedKey >> mapData.keyshifts
 	ptr := (*unsafe.Pointer)(unsafe.Pointer(uintptr(mapData.data) + index*intSizeBytes))
-	item := (*ListElement[K, V])(atomic.LoadPointer(ptr))
+	item := (*element[K, V])(atomic.LoadPointer(ptr))
 	for (item == nil || hashedKey < item.keyHash) && index > 0 {
 		index--
 		ptr = (*unsafe.Pointer)(unsafe.Pointer(uintptr(mapData.data) + index*intSizeBytes))
-		item = (*ListElement[K, V])(atomic.LoadPointer(ptr))
+		item = (*element[K, V])(atomic.LoadPointer(ptr))
 	}
 	return item
 }
 
 // Del deletes the key from the map.
 func (m *HashMap[K, V]) Del(key K) {
-	list := m.linkedlist
-	if list == nil {
-		return
-	}
-
 	h := m.hasher(key)
 
 	element := m.datamap.Load().indexElement(h)
 ElementLoop:
-	for ; element != nil; element = element.Next() {
+	for ; element != nil; element = element.next() {
 		if element.keyHash == h && element.key == key {
 			break ElementLoop
 		}
@@ -158,44 +156,30 @@ ElementLoop:
 		return
 	}
 
-	m.deleteElement(element)
-	list.Delete(element)
-}
-
-// deleteElement deletes an element from index
-func (m *HashMap[K, V]) deleteElement(element *ListElement[K, V]) {
 	for {
 		data := m.datamap.Load()
 		index := element.keyHash >> data.keyshifts
 		ptr := (*unsafe.Pointer)(unsafe.Pointer(uintptr(data.data) + index*intSizeBytes))
 
-		next := element.Next()
+		next := element.next()
 		if next != nil && element.keyHash>>data.keyshifts != index {
 			next = nil // do not set index to next item if it's not the same slice index
 		}
 		atomic.CompareAndSwapPointer(ptr, unsafe.Pointer(element), unsafe.Pointer(next))
 
-		currentdata := m.datamap.Load()
-		if data == currentdata { // check that no resize happened
+		if data == m.datamap.Load() { // check that no resize happened
+			m.numItems.Add(-1)
 			return
 		}
 	}
 }
 
 // Get retrieves an element from the map under given hash key.
-// Using interface{} adds a performance penalty.
-// Please consider using GetUintKey or GetStringKey instead.
 func (m *HashMap[K, V]) Get(key K) (value V, ok bool) {
 	h := m.hasher(key)
-	element := m.datamap.Load().indexElement(h)
-
-	// inline HashMap.searchItem()
-	for ; element != nil; element = element.Next() {
-		if element.keyHash == h && element.key == key {
-			value, ok = element.Value(), true
-			return
-		} else if element.keyHash > h {
-			ok = false
+	if elem := m.datamap.Load().indexElement(h); elem != nil {
+		if curr := elem.fastSearch(h, key); curr != nil {
+			value, ok = *curr.value.Load(), true
 			return
 		}
 	}
@@ -206,45 +190,38 @@ func (m *HashMap[K, V]) Get(key K) (value V, ok bool) {
 // Set sets the value under the specified key to the map. An existing item for this key will be overwritten.
 // If a resizing operation is happening concurrently while calling Set, the item might show up in the map only after the resize operation is finished.
 func (m *HashMap[K, V]) Set(key K, value V) {
-	h := m.hasher(key)
-	element := &ListElement[K, V]{
-		key:     key,
-		keyHash: h,
-	}
-	element.value.Store(&value)
-	m.insertListElement(element)
-}
-
-func (m *HashMap[K, V]) insertListElement(element *ListElement[K, V]) bool {
+	h, valPtr := m.hasher(key), &value
+	var alloc *element[K, V]
 	for {
 		data := m.datamap.Load()
-		existing := data.indexElement(element.keyHash)
 		if data == nil {
 			m.Grow(DefaultSize)
 			continue // read mapdata and slice item again
 		}
-		list := m.linkedlist
-
-		if !list.AddOrUpdate(element, existing) {
-			continue // a concurrent add did interfere, try again
+		existing := data.indexElement(h)
+		if existing != nil {
+			alloc = existing.inject(h, key, valPtr)
+		} else {
+			alloc = m.listHead.inject(h, key, valPtr)
+			m.numItems.Add(1)
 		}
 
-		count := data.addItemToIndex(element)
+		count := data.addItemToIndex(alloc)
 		if m.resizeNeeded(data, count) && len(m.growChan) == 0 {
 			m.growChan <- 0
 		}
-		return true
+		return
 	}
 }
 
 // adds an item to the index if needed and returns the new item counter if it changed, otherwise 0
-func (mapData *hashMapData[K, V]) addItemToIndex(item *ListElement[K, V]) uintptr {
+func (mapData *hashMapData[K, V]) addItemToIndex(item *element[K, V]) uintptr {
 	index := item.keyHash >> mapData.keyshifts
 	ptr := (*unsafe.Pointer)(unsafe.Pointer(uintptr(mapData.data) + index*intSizeBytes))
 
 	for { // loop until the smallest key hash is in the index
-		element := (*ListElement[K, V])(atomic.LoadPointer(ptr)) // get the current item in the index
-		if element == nil {                                      // no item yet at this index
+		element := (*element[K, V])(atomic.LoadPointer(ptr)) // get the current item in the index
+		if element == nil {                                  // no item yet at this index
 			if atomic.CompareAndSwapPointer(ptr, nil, unsafe.Pointer(item)) {
 				return mapData.count.Add(1)
 			}
@@ -262,11 +239,7 @@ func (mapData *hashMapData[K, V]) addItemToIndex(item *ListElement[K, V]) uintpt
 }
 
 func (m *HashMap[K, V]) fillIndexItems(mapData *hashMapData[K, V]) {
-	list := m.linkedlist
-	if list == nil {
-		return
-	}
-	first := list.First()
+	first := m.listHead
 	item := first
 	lastIndex := uintptr(0)
 
@@ -276,18 +249,14 @@ func (m *HashMap[K, V]) fillIndexItems(mapData *hashMapData[K, V]) {
 			mapData.addItemToIndex(item)
 			lastIndex = index
 		}
-		item = item.Next()
+		item = item.next()
 	}
 }
 
 // ForEach iterates over key-value pairs and executes the lambda provided for each such pair.
 func (m *HashMap[K, V]) ForEach(lambda func(K, V)) {
-	list := m.linkedlist
-	if list == nil {
-		return
-	}
-	for item := list.First(); item != nil; item = item.Next() {
-		lambda(item.key, item.Value())
+	for item := m.listHead.next(); item != nil; item = item.next() {
+		lambda(item.key, *item.value.Load())
 	}
 }
 
@@ -308,12 +277,7 @@ func (m *HashMap[K, V]) SetHasher(hs func(K) uintptr) {
 
 // Len returns the number of key-value pairs within the map.
 func (m *HashMap[K, V]) Len() uintptr {
-	l := m.linkedlist
-	if l != nil {
-		return l.Len()
-	} else {
-		return 0
-	}
+	return uintptr(m.numItems.Load())
 }
 
 // Fillrate returns the fill rate of the map as an percentage integer.
@@ -333,7 +297,7 @@ start:
 
 	newdata := &hashMapData[K, V]{
 		keyshifts: strconv.IntSize - log2(newSize),
-		data:      unsafe.Pointer(&make([]*ListElement[K, V], newSize)[0]), // use address of slice data storage
+		data:      unsafe.Pointer(&make([]*element[K, V], newSize)[0]), // use address of slice data storage
 		length:    newSize,
 	}
 
