@@ -14,7 +14,7 @@ const epochs uintptr = 1 << 12
 var haxm = setupHaxMap()
 
 func setupHaxMap() *haxmap.HashMap[uintptr, uintptr] {
-	m := haxmap.New[uintptr, uintptr]()
+	m := haxmap.New[uintptr, uintptr](4096)
 	for i := uintptr(0); i < epochs; i++ {
 		m.Set(i, i)
 	}
@@ -30,7 +30,7 @@ func setupGoSyncMap() *sync.Map {
 }
 
 func setupCornelkMap(b *testing.B) *hashmap.HashMap[uintptr, uintptr] {
-	m := hashmap.New[uintptr, uintptr]()
+	m := hashmap.NewSized[uintptr, uintptr](4096)
 	for i := uintptr(0); i < epochs; i++ {
 		m.Set(i, i)
 	}
