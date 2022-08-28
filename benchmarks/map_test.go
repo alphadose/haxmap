@@ -1,11 +1,12 @@
 package benchmark
 
 import (
+	"sync"
 	"sync/atomic"
 	"testing"
 
 	"github.com/alphadose/haxmap"
-	// "github.com/cornelk/hashmap"
+	"github.com/cornelk/hashmap"
 )
 
 const epochs uintptr = 1 << 12
@@ -13,20 +14,28 @@ const epochs uintptr = 1 << 12
 var haxm = setupHaxMap()
 
 func setupHaxMap() *haxmap.HashMap[uintptr, uintptr] {
-	m := haxmap.New[uintptr, uintptr](64)
+	m := haxmap.New[uintptr, uintptr]()
 	for i := uintptr(0); i < epochs; i++ {
 		m.Set(i, i)
 	}
 	return m
 }
 
-// func setupGoSyncMap() *sync.Map {
-// 	m := &sync.Map{}
-// 	for i := uintptr(0); i < epochs; i++ {
-// 		m.Store(i, i)
-// 	}
-// 	return m
-// }
+func setupGoSyncMap() *sync.Map {
+	m := &sync.Map{}
+	for i := uintptr(0); i < epochs; i++ {
+		m.Store(i, i)
+	}
+	return m
+}
+
+func setupCornelkMap(b *testing.B) *hashmap.HashMap[uintptr, uintptr] {
+	m := hashmap.New[uintptr, uintptr]()
+	for i := uintptr(0); i < epochs; i++ {
+		m.Set(i, i)
+	}
+	return m
+}
 
 func BenchmarkHaxMapReadsOnly(b *testing.B) {
 	b.ResetTimer()
@@ -66,90 +75,82 @@ func BenchmarkHaxMapReadsWithWrites(b *testing.B) {
 	})
 }
 
-// func BenchmarkGoSyncMapReadsOnly(b *testing.B) {
-// 	m := setupGoSyncMap()
-// 	b.ResetTimer()
-// 	b.RunParallel(func(pb *testing.PB) {
-// 		for pb.Next() {
-// 			for i := uintptr(0); i < epochs; i++ {
-// 				j, _ := m.Load(i)
-// 				if j != i {
-// 					b.Fail()
-// 				}
-// 			}
-// 		}
-// 	})
-// }
+func BenchmarkGoSyncMapReadsOnly(b *testing.B) {
+	m := setupGoSyncMap()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			for i := uintptr(0); i < epochs; i++ {
+				j, _ := m.Load(i)
+				if j != i {
+					b.Fail()
+				}
+			}
+		}
+	})
+}
 
-// func BenchmarkGoSyncMapReadsWithWrites(b *testing.B) {
-// 	m := setupGoSyncMap()
-// 	var writer uintptr
-// 	b.ResetTimer()
-// 	b.RunParallel(func(pb *testing.PB) {
-// 		// use 1 thread as writer
-// 		if atomic.CompareAndSwapUintptr(&writer, 0, 1) {
-// 			for pb.Next() {
-// 				for i := uintptr(0); i < epochs; i++ {
-// 					m.Store(i, i)
-// 				}
-// 			}
-// 		} else {
-// 			for pb.Next() {
-// 				for i := uintptr(0); i < epochs; i++ {
-// 					j, _ := m.Load(i)
-// 					if j != i {
-// 						b.Fail()
-// 					}
-// 				}
-// 			}
-// 		}
-// 	})
-// }
+func BenchmarkGoSyncMapReadsWithWrites(b *testing.B) {
+	m := setupGoSyncMap()
+	var writer uintptr
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		// use 1 thread as writer
+		if atomic.CompareAndSwapUintptr(&writer, 0, 1) {
+			for pb.Next() {
+				for i := uintptr(0); i < epochs; i++ {
+					m.Store(i, i)
+				}
+			}
+		} else {
+			for pb.Next() {
+				for i := uintptr(0); i < epochs; i++ {
+					j, _ := m.Load(i)
+					if j != i {
+						b.Fail()
+					}
+				}
+			}
+		}
+	})
+}
 
-// func setupCornelkMap(b *testing.B) *hashmap.HashMap {
-// 	m := &hashmap.HashMap{}
-// 	for i := uintptr(0); i < epochs; i++ {
-// 		m.Set(i, i)
-// 	}
-// 	return m
-// }
+func BenchmarkCornelkMapReadsOnly(b *testing.B) {
+	m := setupCornelkMap(b)
 
-// func BenchmarkCornelkMapReadsOnly(b *testing.B) {
-// 	m := setupCornelkMap(b)
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			for i := uintptr(0); i < epochs; i++ {
+				j, _ := m.Get(i)
+				if j != i {
+					b.Fail()
+				}
+			}
+		}
+	})
+}
 
-// 	b.RunParallel(func(pb *testing.PB) {
-// 		for pb.Next() {
-// 			for i := uintptr(0); i < epochs; i++ {
-// 				j, _ := m.GetUintKey(i)
-// 				if j != i {
-// 					b.Fail()
-// 				}
-// 			}
-// 		}
-// 	})
-// }
+func BenchmarkCornelkMapReadsWithWrites(b *testing.B) {
+	m := setupCornelkMap(b)
+	var writer uintptr
 
-// func BenchmarkCornelkMapReadsWithWrites(b *testing.B) {
-// 	m := setupCornelkMap(b)
-// 	var writer uintptr
-
-// 	b.RunParallel(func(pb *testing.PB) {
-// 		// use 1 thread as writer
-// 		if atomic.CompareAndSwapUintptr(&writer, 0, 1) {
-// 			for pb.Next() {
-// 				for i := uintptr(0); i < epochs; i++ {
-// 					m.Set(i, i)
-// 				}
-// 			}
-// 		} else {
-// 			for pb.Next() {
-// 				for i := uintptr(0); i < epochs; i++ {
-// 					j, _ := m.GetUintKey(i)
-// 					if j != i {
-// 						b.Fail()
-// 					}
-// 				}
-// 			}
-// 		}
-// 	})
-// }
+	b.RunParallel(func(pb *testing.PB) {
+		// use 1 thread as writer
+		if atomic.CompareAndSwapUintptr(&writer, 0, 1) {
+			for pb.Next() {
+				for i := uintptr(0); i < epochs; i++ {
+					m.Set(i, i)
+				}
+			}
+		} else {
+			for pb.Next() {
+				for i := uintptr(0); i < epochs; i++ {
+					j, _ := m.Get(i)
+					if j != i {
+						b.Fail()
+					}
+				}
+			}
+		}
+	})
+}

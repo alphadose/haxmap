@@ -288,7 +288,6 @@ func (m *HashMap[K, V]) Fillrate() uintptr {
 }
 
 func (m *HashMap[K, V]) allocate(newSize uintptr) {
-	// println("kekw ", newSize)
 start:
 	data := m.datamap.Load()
 	if newSize == 0 {
@@ -311,7 +310,6 @@ start:
 
 	// check if a new resize needs to be done already
 	if resizeNeeded(newSize, m.Len()) {
-		println("kekw", m.Len())
 		newSize = 0 // 0 means double the current size
 		goto start
 	}
