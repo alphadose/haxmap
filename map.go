@@ -69,60 +69,32 @@ func New[K hashable, V any](size ...uintptr) *HashMap[K, V] {
 	switch any(*new(K)).(type) {
 	case int, uint, uintptr:
 		m.hasher = func(key K) uintptr {
-			return hash.Sum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-				Data: uintptr(unsafe.Pointer(&key)),
-				Len:  intSizeBytes,
-				Cap:  intSizeBytes,
-			})))
+			return hash.Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), intSizeBytes))
 		}
 	case int8, uint8:
 		m.hasher = func(key K) uintptr {
-			return hash.Sum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-				Data: uintptr(unsafe.Pointer(&key)),
-				Len:  byteSize,
-				Cap:  byteSize,
-			})))
+			return hash.Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), byteSize))
 		}
 	case int16, uint16:
 		m.hasher = func(key K) uintptr {
-			return hash.Sum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-				Data: uintptr(unsafe.Pointer(&key)),
-				Len:  wordSize,
-				Cap:  wordSize,
-			})))
+			return hash.Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), wordSize))
 		}
 	case int32, uint32, float32:
 		m.hasher = func(key K) uintptr {
-			return hash.Sum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-				Data: uintptr(unsafe.Pointer(&key)),
-				Len:  dwordSize,
-				Cap:  dwordSize,
-			})))
+			return hash.Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), dwordSize))
 		}
 	case int64, uint64, float64, complex64:
 		m.hasher = func(key K) uintptr {
-			return hash.Sum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-				Data: uintptr(unsafe.Pointer(&key)),
-				Len:  qwordSize,
-				Cap:  qwordSize,
-			})))
+			return hash.Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), qwordSize))
 		}
 	case complex128:
 		m.hasher = func(key K) uintptr {
-			return hash.Sum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-				Data: uintptr(unsafe.Pointer(&key)),
-				Len:  owordSize,
-				Cap:  owordSize,
-			})))
+			return hash.Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), owordSize))
 		}
 	case string:
 		m.hasher = func(key K) uintptr {
 			sh := (*reflect.StringHeader)(unsafe.Pointer(&key))
-			return hash.Sum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-				Data: sh.Data,
-				Len:  sh.Len,
-				Cap:  sh.Len,
-			})))
+			return hash.Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), sh.Len))
 		}
 	}
 	return m
