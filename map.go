@@ -45,9 +45,8 @@ type (
 		listHead *element[K, V] // key sorted linked list of elements
 		hasher   func(K) uintptr
 		growChan chan uintptr
-		numItems atomic.Int32
+		numItems atomic.Uintptr
 		datamap  atomic.Pointer[hashMapData[K, V]] // pointer to a map instance that gets replaced if the map resizes
-
 	}
 )
 
@@ -142,12 +141,11 @@ func (m *HashMap[K, V]) Del(key K) {
 	h := m.hasher(key)
 
 	element := m.datamap.Load().indexElement(h)
-ElementLoop:
+loop:
 	for ; element != nil; element = element.next() {
 		if element.keyHash == h && element.key == key {
-			break ElementLoop
+			break loop
 		}
-
 		if element.keyHash > h {
 			return
 		}
@@ -168,7 +166,7 @@ ElementLoop:
 		atomic.CompareAndSwapPointer(ptr, unsafe.Pointer(element), unsafe.Pointer(next))
 
 		if data == m.datamap.Load() { // check that no resize happened
-			m.numItems.Add(-1)
+			m.numItems.Add(marked)
 			return
 		}
 	}
@@ -210,7 +208,7 @@ func (m *HashMap[K, V]) Set(key K, value V) {
 		}
 
 		count := data.addItemToIndex(alloc)
-		if m.resizeNeeded(data, count) && len(m.growChan) == 0 {
+		if resizeNeeded(data.length, count) && len(m.growChan) == 0 {
 			m.growChan <- 0
 		}
 		return
@@ -290,6 +288,7 @@ func (m *HashMap[K, V]) Fillrate() uintptr {
 }
 
 func (m *HashMap[K, V]) allocate(newSize uintptr) {
+	// println("kekw ", newSize)
 start:
 	data := m.datamap.Load()
 	if newSize == 0 {
@@ -311,7 +310,8 @@ start:
 	m.fillIndexItems(newdata) // make sure that the new index is up to date with the current state of the linked list
 
 	// check if a new resize needs to be done already
-	if m.resizeNeeded(newdata, m.Len()) {
+	if resizeNeeded(newSize, m.Len()) {
+		println("kekw", m.Len())
 		newSize = 0 // 0 means double the current size
 		goto start
 	}
@@ -324,10 +324,28 @@ func (m *HashMap[K, V]) growRoutine() {
 	}
 }
 
-func (m *HashMap[K, V]) resizeNeeded(data *hashMapData[K, V], count uintptr) bool {
-	l := data.length
-	if l == 0 {
-		return false
+func resizeNeeded(length, count uintptr) bool {
+	return (count*100)/length > MaxFillRate
+}
+
+// roundUpPower2 rounds a number to the next power of 2.
+func roundUpPower2(i uintptr) uintptr {
+	i--
+	i |= i >> 1
+	i |= i >> 2
+	i |= i >> 4
+	i |= i >> 8
+	i |= i >> 16
+	i |= i >> 32
+	i++
+	return i
+}
+
+// log2 computes the binary logarithm of x, rounded up to the next integer.
+func log2(i uintptr) uintptr {
+	var n, p uintptr
+	for p = 1; p < i; p += p {
+		n++
 	}
-	return (count*100)/l > MaxFillRate
+	return n
 }
