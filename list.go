@@ -13,11 +13,10 @@ const marked = ^uintptr(0)
 
 // newListHead returns the new head of any list
 func newListHead[K hashable, V any]() *element[K, V] {
-	ptr := atomic.Pointer[element[K, V]]{}
-	ptr.Store(nil)
-	val := atomic.Pointer[V]{}
-	val.Store(new(V))
-	return &element[K, V]{marked, *new(K), ptr, val}
+	e := &element[K, V]{marked, *new(K), atomic.Pointer[element[K, V]]{}, atomic.Pointer[V]{}}
+	e.nextPtr.Store(nil)
+	e.value.Store(new(V))
+	return e
 }
 
 // a single node in the list
