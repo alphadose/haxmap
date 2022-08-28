@@ -27,6 +27,12 @@ const (
 	intSizeBytes = strconv.IntSize >> 3
 )
 
+// indicates resizing operation status enums
+const (
+	notResizing uint32 = iota
+	resizingInProgress
+)
+
 type (
 	// allowed map key types constraint
 	hashable interface {
@@ -44,7 +50,7 @@ type (
 	HashMap[K hashable, V any] struct {
 		listHead *element[K, V] // key sorted linked list of elements
 		hasher   func(K) uintptr
-		growChan chan uintptr
+		resizing atomic.Uint32
 		numItems atomic.Uintptr
 		datamap  atomic.Pointer[hashMapData[K, V]] // pointer to a map instance that gets replaced if the map resizes
 	}
@@ -52,9 +58,8 @@ type (
 
 // New returns a new HashMap instance with an optional specific initialization size.
 func New[K hashable, V any](size ...uintptr) *HashMap[K, V] {
-	m := &HashMap[K, V]{listHead: newListHead[K, V](), growChan: make(chan uintptr, 3)}
+	m := &HashMap[K, V]{listHead: newListHead[K, V]()}
 	m.numItems.Store(0)
-	go m.growRoutine() // asynchronously handle resizing operations
 	if len(size) > 0 {
 		m.allocate(size[0])
 	} else {
@@ -208,8 +213,8 @@ func (m *HashMap[K, V]) Set(key K, value V) {
 		}
 
 		count := data.addItemToIndex(alloc)
-		if resizeNeeded(data.length, count) && len(m.growChan) == 0 {
-			m.growChan <- 0
+		if resizeNeeded(data.length, count) && m.resizing.CompareAndSwap(notResizing, resizingInProgress) {
+			go m.grow(0, true)
 		}
 		return
 	}
@@ -266,8 +271,8 @@ func (m *HashMap[K, V]) ForEach(lambda func(K, V)) {
 // This function returns immediately, the resize operation is done in a goroutine.
 // No resizing is done in case of another resize operation already being in progress.
 func (m *HashMap[K, V]) Grow(newSize uintptr) {
-	if len(m.growChan) == 0 {
-		m.growChan <- newSize
+	if m.resizing.CompareAndSwap(notResizing, resizingInProgress) {
+		m.grow(newSize, true)
 	}
 }
 
@@ -288,37 +293,44 @@ func (m *HashMap[K, V]) Fillrate() uintptr {
 }
 
 func (m *HashMap[K, V]) allocate(newSize uintptr) {
-start:
-	data := m.datamap.Load()
-	if newSize == 0 {
-		newSize = data.length << 1
-	} else {
-		newSize = roundUpPower2(newSize)
-	}
-
-	newdata := &hashMapData[K, V]{
-		keyshifts: strconv.IntSize - log2(newSize),
-		data:      unsafe.Pointer(&make([]*element[K, V], newSize)[0]), // use address of slice data storage
-		length:    newSize,
-	}
-
-	m.fillIndexItems(newdata) // initialize new index slice with longer keys
-
-	m.datamap.Store(newdata)
-
-	m.fillIndexItems(newdata) // make sure that the new index is up to date with the current state of the linked list
-
-	// check if a new resize needs to be done already
-	if resizeNeeded(newSize, m.Len()) {
-		newSize = 0 // 0 means double the current size
-		goto start
+	if m.resizing.CompareAndSwap(notResizing, resizingInProgress) {
+		m.grow(newSize, false)
 	}
 }
 
-// a single goroutine per haxmap handling resize operations
-func (m *HashMap[K, V]) growRoutine() {
-	for newSize := range m.growChan {
-		m.allocate(newSize)
+// grow to the new size
+func (m *HashMap[K, V]) grow(newSize uintptr, loop bool) {
+	defer m.resizing.Store(notResizing)
+
+	for {
+		currentStore := m.datamap.Load()
+		if newSize == 0 {
+			newSize = uintptr(currentStore.length) << 1
+		} else {
+			newSize = roundUpPower2(newSize)
+		}
+
+		newdata := &hashMapData[K, V]{
+			keyshifts: strconv.IntSize - log2(newSize),
+			data:      unsafe.Pointer(&make([]*element[K, V], newSize)[0]), // use address of slice data storage
+			length:    newSize,
+		}
+
+		m.fillIndexItems(newdata) // initialize new index slice with longer keys
+
+		m.datamap.Store(newdata)
+
+		m.fillIndexItems(newdata) // make sure that the new index is up-to-date with the current state of the linked list
+
+		if !loop {
+			return
+		}
+
+		// check if a new resize needs to be done already
+		if !resizeNeeded(newdata.length, uintptr(m.Len())) {
+			return
+		}
+		newSize = 0 // 0 means double the current size
 	}
 }
 
