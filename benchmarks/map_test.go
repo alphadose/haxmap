@@ -12,7 +12,7 @@ import (
 const epochs uintptr = 1 << 12
 
 func setupHaxMap() *haxmap.HashMap[uintptr, uintptr] {
-	m := haxmap.New[uintptr, uintptr]()
+	m := haxmap.New[uintptr, uintptr](4096)
 	for i := uintptr(0); i < epochs; i++ {
 		m.Set(i, i)
 	}

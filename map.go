@@ -191,7 +191,10 @@ func (m *HashMap[K, V]) Get(key K) (value V, ok bool) {
 // If a resizing operation is happening concurrently while calling Set, the item might show up in the map only after the resize operation is finished.
 func (m *HashMap[K, V]) Set(key K, value V) {
 	h, valPtr := m.hasher(key), &value
-	var alloc *element[K, V]
+	var (
+		alloc   *element[K, V]
+		created = false
+	)
 	for {
 		data := m.datamap.Load()
 		if data == nil {
@@ -199,10 +202,10 @@ func (m *HashMap[K, V]) Set(key K, value V) {
 			continue // read mapdata and slice item again
 		}
 		existing := data.indexElement(h)
-		if existing != nil {
-			alloc = existing.inject(h, key, valPtr)
-		} else {
-			alloc = m.listHead.inject(h, key, valPtr)
+		if existing == nil {
+			existing = m.listHead
+		}
+		if alloc, created = existing.inject(h, key, valPtr); created {
 			m.numItems.Add(1)
 		}
 

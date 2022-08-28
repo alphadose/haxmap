@@ -59,13 +59,13 @@ func (self *element[K, V]) addBefore(t uintptr, allocatedElement, before *elemen
 }
 
 // inject updates an existing value in the list if present or adds a new entry
-func (self *element[K, V]) inject(c uintptr, key K, value *V) *element[K, V] {
+func (self *element[K, V]) inject(c uintptr, key K, value *V) (elem *element[K, V], created bool) {
 	var alloc, left, curr, right *element[K, V]
 	for {
 		left, curr, right = self.search(c, key)
 		if curr != nil {
 			curr.value.Store(value)
-			return curr
+			return curr, false
 		}
 		if left != nil {
 			if alloc == nil {
@@ -73,7 +73,7 @@ func (self *element[K, V]) inject(c uintptr, key K, value *V) *element[K, V] {
 				alloc.value.Store(value)
 			}
 			if left.addBefore(c, alloc, right) {
-				return alloc
+				return alloc, true
 			}
 		}
 	}
