@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	epochs  uintptr = 1 << 14
+	epochs  uintptr = 1 << 12
 	mapSize         = 256
 )
 
@@ -120,7 +120,7 @@ func BenchmarkGoSyncMapReadsWithWrites(b *testing.B) {
 
 func BenchmarkCornelkMapReadsOnly(b *testing.B) {
 	m := setupCornelkMap(b)
-
+	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			for i := uintptr(0); i < epochs; i++ {
@@ -136,7 +136,7 @@ func BenchmarkCornelkMapReadsOnly(b *testing.B) {
 func BenchmarkCornelkMapReadsWithWrites(b *testing.B) {
 	m := setupCornelkMap(b)
 	var writer uintptr
-
+	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		// use 1 thread as writer
 		if atomic.CompareAndSwapUintptr(&writer, 0, 1) {

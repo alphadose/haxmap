@@ -12,7 +12,6 @@ func main() {
 
 	// set a value (overwrites existing value if present)
 	mep.Set(1, "one")
-	println(mep.Len())
 	// get the value and print it
 	val, ok := mep.Get(1)
 	if ok {

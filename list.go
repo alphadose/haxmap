@@ -105,29 +105,6 @@ func (self *element[K, V]) search(c uintptr, key K) (*element[K, V], *element[K,
 	}
 }
 
-// fastSearch is a fast version of the search returning only the desired element
-// this search mechanism also skips over deleted elements and does not try to remove them
-func (self *element[K, V]) fastSearch(c uintptr, key K) *element[K, V] {
-	var (
-		left *element[K, V]
-		curr = self
-	)
-	for curr != nil {
-		if curr.keyHash < c || curr.keyHash == marked {
-			left = curr
-			curr = left.next()
-			continue
-		}
-		if curr.keyHash == c && curr.key == key {
-			return curr
-		}
-		if curr.keyHash > c {
-			return nil
-		}
-	}
-	return nil
-}
-
 // remove removes the current node
 func (self *element[K, V]) remove() bool {
 	for {

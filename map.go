@@ -50,9 +50,9 @@ type (
 	HashMap[K hashable, V any] struct {
 		listHead *element[K, V] // key sorted linked list of elements
 		hasher   func(K) uintptr
+		datamap  atomic.Pointer[hashMapData[K, V]] // pointer to a map instance that gets replaced if the map resizes
 		resizing atomic.Uint32
 		numItems atomic.Uintptr
-		datamap  atomic.Pointer[hashMapData[K, V]] // pointer to a map instance that gets replaced if the map resizes
 	}
 )
 
@@ -180,10 +180,16 @@ loop:
 // Get retrieves an element from the map under given hash key.
 func (m *HashMap[K, V]) Get(key K) (value V, ok bool) {
 	h := m.hasher(key)
-	if elem := m.datamap.Load().indexElement(h); elem != nil {
-		if curr := elem.fastSearch(h, key); curr != nil {
-			value, ok = *curr.value.Load(), true
+	// inline search
+	for elem := m.datamap.Load().indexElement(h); elem != nil; elem = elem.nextPtr.Load() {
+		if elem.keyHash == h && elem.key == key {
+			value, ok = *elem.value.Load(), true
 			return
+		}
+		if elem.keyHash == marked || elem.keyHash < h {
+			continue
+		} else {
+			break
 		}
 	}
 	ok = false
