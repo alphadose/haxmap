@@ -9,12 +9,13 @@ import (
 	"github.com/cornelk/hashmap"
 )
 
-const epochs uintptr = 1 << 12
-
-var haxm = setupHaxMap()
+const (
+	epochs  uintptr = 1 << 14
+	mapSize         = 256
+)
 
 func setupHaxMap() *haxmap.HashMap[uintptr, uintptr] {
-	m := haxmap.New[uintptr, uintptr]()
+	m := haxmap.New[uintptr, uintptr](mapSize)
 	for i := uintptr(0); i < epochs; i++ {
 		m.Set(i, i)
 	}
@@ -30,7 +31,7 @@ func setupGoSyncMap() *sync.Map {
 }
 
 func setupCornelkMap(b *testing.B) *hashmap.HashMap[uintptr, uintptr] {
-	m := hashmap.New[uintptr, uintptr]()
+	m := hashmap.NewSized[uintptr, uintptr](mapSize)
 	for i := uintptr(0); i < epochs; i++ {
 		m.Set(i, i)
 	}
@@ -38,11 +39,12 @@ func setupCornelkMap(b *testing.B) *hashmap.HashMap[uintptr, uintptr] {
 }
 
 func BenchmarkHaxMapReadsOnly(b *testing.B) {
+	m := setupHaxMap()
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			for i := uintptr(0); i < epochs; i++ {
-				j, _ := haxm.Get(i)
+				j, _ := m.Get(i)
 				if j != i {
 					b.Fail()
 				}
@@ -52,6 +54,7 @@ func BenchmarkHaxMapReadsOnly(b *testing.B) {
 }
 
 func BenchmarkHaxMapReadsWithWrites(b *testing.B) {
+	m := setupHaxMap()
 	var writer uintptr
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
@@ -59,13 +62,13 @@ func BenchmarkHaxMapReadsWithWrites(b *testing.B) {
 		if atomic.CompareAndSwapUintptr(&writer, 0, 1) {
 			for pb.Next() {
 				for i := uintptr(0); i < epochs; i++ {
-					haxm.Set(i, i)
+					m.Set(i, i)
 				}
 			}
 		} else {
 			for pb.Next() {
 				for i := uintptr(0); i < epochs; i++ {
-					j, _ := haxm.Get(i)
+					j, _ := m.Get(i)
 					if j != i {
 						b.Fail()
 					}
