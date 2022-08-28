@@ -121,10 +121,6 @@ func TestDelete(t *testing.T) {
 		t.Error("map should be empty.")
 	}
 
-	m.ForEach(func(i int, a *Animal) {
-		t.Errorf("map should be empty but got key -> %d and value -> %#v.", i, a)
-	})
-
 	val, ok := m.Get(1) // Get a missing element.
 	if ok {
 		t.Error("ok should be false when item is missing from map.")
