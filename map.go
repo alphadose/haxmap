@@ -283,7 +283,7 @@ func (m *HashMap[K, V]) SetHasher(hs func(K) uintptr) {
 
 // Len returns the number of key-value pairs within the map.
 func (m *HashMap[K, V]) Len() uintptr {
-	return uintptr(m.numItems.Load())
+	return m.numItems.Load()
 }
 
 // Fillrate returns the fill rate of the map as an percentage integer.
@@ -300,12 +300,12 @@ func (m *HashMap[K, V]) allocate(newSize uintptr) {
 
 // grow to the new size
 func (m *HashMap[K, V]) grow(newSize uintptr, loop bool) {
-	defer m.resizing.Store(notResizing)
+	defer m.resizing.CompareAndSwap(resizingInProgress, notResizing)
 
 	for {
 		currentStore := m.datamap.Load()
 		if newSize == 0 {
-			newSize = uintptr(currentStore.length) << 1
+			newSize = currentStore.length << 1
 		} else {
 			newSize = roundUpPower2(newSize)
 		}
