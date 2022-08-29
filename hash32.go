@@ -17,8 +17,8 @@ const (
 
 var prime1v = prime1
 
-// xxHash implementation for 32 bit system
-func Sum(b []byte) uintptr {
+// defaultSum implements xxHash for 32 bit systems
+func defaultSum(b []byte) uintptr {
 	n := len(b)
 	h32 := uint32(n)
 
@@ -71,3 +71,60 @@ func rol12(x uint32) uint32 { return bits.RotateLeft32(x, 12) }
 func rol13(x uint32) uint32 { return bits.RotateLeft32(x, 13) }
 func rol17(x uint32) uint32 { return bits.RotateLeft32(x, 17) }
 func rol18(x uint32) uint32 { return bits.RotateLeft32(x, 18) }
+
+func (m *HashMap[K, V]) setDefaultHasher() {
+	// default hash functions
+	switch any(*new(K)).(type) {
+	case int, uint, uintptr:
+		m.hasher = func(key K) uintptr {
+			return defaultSum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+				Data: uintptr(unsafe.Pointer(&key)),
+				Len:  intSizeBytes,
+			})))
+		}
+	case int8, uint8:
+		m.hasher = func(key K) uintptr {
+			return defaultSum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+				Data: uintptr(unsafe.Pointer(&key)),
+				Len:  byteSize,
+			})))
+		}
+	case int16, uint16:
+		m.hasher = func(key K) uintptr {
+			return defaultSum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+				Data: uintptr(unsafe.Pointer(&key)),
+				Len:  wordSize,
+			})))
+		}
+	case int32, uint32, float32:
+		m.hasher = func(key K) uintptr {
+			return defaultSum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+				Data: uintptr(unsafe.Pointer(&key)),
+				Len:  dwordSize,
+			})))
+		}
+	case int64, uint64, float64, complex64:
+		m.hasher = func(key K) uintptr {
+			return defaultSum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+				Data: uintptr(unsafe.Pointer(&key)),
+				Len:  qwordSize,
+			})))
+		}
+	case complex128:
+		m.hasher = func(key K) uintptr {
+			return defaultSum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+				Data: uintptr(unsafe.Pointer(&key)),
+				Len:  owordSize,
+			})))
+		}
+	case string:
+		m.hasher = func(key K) uintptr {
+			sh := (*reflect.StringHeader)(unsafe.Pointer(&key))
+			return uintptr(defaultSum(unsafe.Slice((*byte)(unsafe.Pointer(&reflect.SliceHeader{
+				Data: sh.Data,
+				Len:  sh.Len,
+				Cap:  sh.Len,
+			})), sh.Len)))
+		}
+	}
+}

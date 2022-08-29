@@ -63,38 +63,7 @@ func New[K hashable, V any](size ...uintptr) *HashMap[K, V] {
 	} else {
 		m.allocate(DefaultSize)
 	}
-	// default hash functions
-	switch any(*new(K)).(type) {
-	case int, uint, uintptr:
-		m.hasher = func(key K) uintptr {
-			return Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), intSizeBytes))
-		}
-	case int8, uint8:
-		m.hasher = func(key K) uintptr {
-			return Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), byteSize))
-		}
-	case int16, uint16:
-		m.hasher = func(key K) uintptr {
-			return Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), wordSize))
-		}
-	case int32, uint32, float32:
-		m.hasher = func(key K) uintptr {
-			return Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), dwordSize))
-		}
-	case int64, uint64, float64, complex64:
-		m.hasher = func(key K) uintptr {
-			return Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), qwordSize))
-		}
-	case complex128:
-		m.hasher = func(key K) uintptr {
-			return Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), owordSize))
-		}
-	case string:
-		m.hasher = func(key K) uintptr {
-			sh := (*reflect.StringHeader)(unsafe.Pointer(&key))
-			return Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), sh.Len))
-		}
-	}
+	m.setDefaultHasher()
 	return m
 }
 

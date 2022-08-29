@@ -5,6 +5,8 @@ package haxmap
 import (
 	"encoding/binary"
 	"math/bits"
+	"reflect"
+	"unsafe"
 )
 
 const (
@@ -17,8 +19,8 @@ const (
 
 var prime1v = prime1
 
-// xxHash implementation for 64 bit system
-func Sum(b []byte) uintptr {
+// defaultSum implements xxHash for 64 bit systems
+func defaultSum(b []byte) uintptr {
 	n := len(b)
 	var h uint64
 
@@ -95,3 +97,168 @@ func rol18(x uint64) uint64 { return bits.RotateLeft64(x, 18) }
 func rol23(x uint64) uint64 { return bits.RotateLeft64(x, 23) }
 func rol27(x uint64) uint64 { return bits.RotateLeft64(x, 27) }
 func rol31(x uint64) uint64 { return bits.RotateLeft64(x, 31) }
+
+// xxHash implementation for known key type sizes
+// minimal hash functions with no branching
+
+func (m *HashMap[K, V]) hashByte(key K) uintptr {
+	b := *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+		Data: uintptr(unsafe.Pointer(&key)),
+		Len:  byteSize,
+	}))
+
+	var h = prime5 + 1
+	h ^= uint64(b[0]) * prime5
+	h = bits.RotateLeft64(h, 11) * prime1
+
+	h ^= h >> 33
+	h *= prime2
+	h ^= h >> 29
+	h *= prime3
+	h ^= h >> 32
+
+	return uintptr(h)
+}
+
+func (m *HashMap[K, V]) hashWord(key K) uintptr {
+	b := *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+		Data: uintptr(unsafe.Pointer(&key)),
+		Len:  wordSize,
+	}))
+
+	var h = prime5 + 2
+
+	h ^= uint64(b[0]) * prime5
+	h = bits.RotateLeft64(h, 11) * prime1
+	h ^= uint64(b[1]) * prime5
+	h = bits.RotateLeft64(h, 11) * prime1
+
+	h ^= h >> 33
+	h *= prime2
+	h ^= h >> 29
+	h *= prime3
+	h ^= h >> 32
+
+	return uintptr(h)
+}
+
+func (m *HashMap[K, V]) hashDword(key K) uintptr {
+	b := *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+		Data: uintptr(unsafe.Pointer(&key)),
+		Len:  dwordSize,
+	}))
+
+	var h = prime5 + 4
+	h ^= (uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24) * prime1
+	h = bits.RotateLeft64(h, 23)*prime2 + prime3
+
+	h ^= h >> 33
+	h *= prime2
+	h ^= h >> 29
+	h *= prime3
+	h ^= h >> 32
+
+	return uintptr(h)
+}
+
+func (m *HashMap[K, V]) hashQword(key K) uintptr {
+	b := *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+		Data: uintptr(unsafe.Pointer(&key)),
+		Len:  qwordSize,
+	}))
+
+	var h = prime5 + 8
+
+	val := uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24 |
+		uint64(b[4])<<32 | uint64(b[5])<<40 | uint64(b[6])<<48 | uint64(b[7])<<56
+
+	k1 := val * prime2
+	k1 = bits.RotateLeft64(k1, 31)
+	k1 *= prime1
+
+	h ^= k1
+	h = bits.RotateLeft64(h, 27)*prime1 + prime4
+
+	h ^= h >> 33
+	h *= prime2
+	h ^= h >> 29
+	h *= prime3
+	h ^= h >> 32
+
+	return uintptr(h)
+}
+
+func (m *HashMap[K, V]) hashOword(key K) uintptr {
+	b := *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+		Data: uintptr(unsafe.Pointer(&key)),
+		Len:  owordSize,
+	}))
+
+	var h = prime5 + 16
+
+	val := uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24 |
+		uint64(b[4])<<32 | uint64(b[5])<<40 | uint64(b[6])<<48 | uint64(b[7])<<56
+
+	k1 := val * prime2
+	k1 = bits.RotateLeft64(k1, 31)
+	k1 *= prime1
+
+	h ^= k1
+	h = bits.RotateLeft64(h, 27)*prime1 + prime4
+
+	val = uint64(b[8]) | uint64(b[9])<<8 | uint64(b[10])<<16 | uint64(b[11])<<24 |
+		uint64(b[12])<<32 | uint64(b[13])<<40 | uint64(b[14])<<48 | uint64(b[15])<<56
+
+	k1 = val * prime2
+	k1 = bits.RotateLeft64(k1, 31)
+	k1 *= prime1
+
+	h ^= k1
+	h = bits.RotateLeft64(h, 27)*prime1 + prime4
+
+	h ^= h >> 33
+	h *= prime2
+	h ^= h >> 29
+	h *= prime3
+	h ^= h >> 32
+
+	return uintptr(h)
+}
+
+func (m *HashMap[K, V]) hashString(key K) uintptr {
+	sh := (*reflect.StringHeader)(unsafe.Pointer(&key))
+	return uintptr(defaultSum(unsafe.Slice((*byte)(unsafe.Pointer(&reflect.SliceHeader{
+		Data: sh.Data,
+		Len:  sh.Len,
+		Cap:  sh.Len,
+	})), sh.Len)))
+}
+
+func (m *HashMap[K, V]) setDefaultHasher() {
+	// default hash functions
+	switch any(*new(K)).(type) {
+	case string:
+		m.hasher = m.hashString
+	case int, uint, uintptr:
+		switch intSizeBytes {
+		case 2:
+			m.hasher = m.hashWord
+		case 4:
+			m.hasher = m.hashDword
+		case 8:
+			m.hasher = m.hashQword
+		default:
+			m.hasher = m.hashByte
+		}
+	case int8, uint8:
+		m.hasher = m.hashByte
+	case int16, uint16:
+		m.hasher = m.hashWord
+	case int32, uint32, float32:
+		m.hasher = m.hashDword
+	case int64, uint64, float64, complex64:
+		m.hasher = m.hashQword
+	case complex128:
+		m.hasher = m.hashOword
+	}
+}
