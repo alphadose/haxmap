@@ -133,21 +133,14 @@ func (m *HashMap[K, V]) setDefaultHasher() {
 	case string:
 		m.hasher = func(key K) uintptr {
 			sh := (*reflect.StringHeader)(unsafe.Pointer(&key))
-			return uintptr(defaultSum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-				Data: sh.Data,
-				Len:  sh.Len,
-				Cap:  sh.Len,
-			}))))
+			return uintptr(defaultSum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), sh.Len)))
 		}
 	case int, uint, uintptr:
 		switch intSizeBytes {
 		case 2:
 			// word hasher
 			m.hasher = func(key K) uintptr {
-				b := *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-					Data: uintptr(unsafe.Pointer(&key)),
-					Len:  wordSize,
-				}))
+				b := unsafe.Slice((*byte)(unsafe.Pointer(&key)), wordSize)
 
 				var h = prime5 + 2
 
@@ -167,10 +160,7 @@ func (m *HashMap[K, V]) setDefaultHasher() {
 		case 4:
 			// Dword hasher
 			m.hasher = func(key K) uintptr {
-				b := *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-					Data: uintptr(unsafe.Pointer(&key)),
-					Len:  dwordSize,
-				}))
+				b := unsafe.Slice((*byte)(unsafe.Pointer(&key)), dwordSize)
 
 				var h = prime5 + 4
 				h ^= (uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24) * prime1
@@ -187,10 +177,7 @@ func (m *HashMap[K, V]) setDefaultHasher() {
 		case 8:
 			// Qword Hash
 			m.hasher = func(key K) uintptr {
-				b := *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-					Data: uintptr(unsafe.Pointer(&key)),
-					Len:  qwordSize,
-				}))
+				b := unsafe.Slice((*byte)(unsafe.Pointer(&key)), qwordSize)
 
 				var h = prime5 + 8
 
@@ -216,10 +203,7 @@ func (m *HashMap[K, V]) setDefaultHasher() {
 	case int8, uint8:
 		// byte word hasher
 		m.hasher = func(key K) uintptr {
-			b := *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-				Data: uintptr(unsafe.Pointer(&key)),
-				Len:  byteSize,
-			}))
+			b := unsafe.Slice((*byte)(unsafe.Pointer(&key)), byteSize)
 
 			var h = prime5 + 1
 			h ^= uint64(b[0]) * prime5
@@ -237,10 +221,7 @@ func (m *HashMap[K, V]) setDefaultHasher() {
 	case int16, uint16:
 		// word hasher
 		m.hasher = func(key K) uintptr {
-			b := *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-				Data: uintptr(unsafe.Pointer(&key)),
-				Len:  wordSize,
-			}))
+			b := unsafe.Slice((*byte)(unsafe.Pointer(&key)), wordSize)
 
 			var h = prime5 + 2
 
@@ -260,10 +241,7 @@ func (m *HashMap[K, V]) setDefaultHasher() {
 	case int32, uint32, float32:
 		// Dword hasher
 		m.hasher = func(key K) uintptr {
-			b := *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-				Data: uintptr(unsafe.Pointer(&key)),
-				Len:  dwordSize,
-			}))
+			b := unsafe.Slice((*byte)(unsafe.Pointer(&key)), dwordSize)
 
 			var h = prime5 + 4
 			h ^= (uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24) * prime1
@@ -280,10 +258,7 @@ func (m *HashMap[K, V]) setDefaultHasher() {
 	case int64, uint64, float64, complex64:
 		// Qword hasher
 		m.hasher = func(key K) uintptr {
-			b := *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-				Data: uintptr(unsafe.Pointer(&key)),
-				Len:  qwordSize,
-			}))
+			b := unsafe.Slice((*byte)(unsafe.Pointer(&key)), qwordSize)
 
 			var h = prime5 + 8
 
@@ -308,10 +283,7 @@ func (m *HashMap[K, V]) setDefaultHasher() {
 	case complex128:
 		// Oword hasher
 		m.hasher = func(key K) uintptr {
-			b := *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-				Data: uintptr(unsafe.Pointer(&key)),
-				Len:  owordSize,
-			}))
+			b := unsafe.Slice((*byte)(unsafe.Pointer(&key)), owordSize)
 
 			var h = prime5 + 16
 
