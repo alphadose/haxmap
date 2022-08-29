@@ -158,7 +158,7 @@ func (m *HashMap[K, V]) Get(key K) (value V, ok bool) {
 			value, ok = *elem.value.Load(), true
 			return
 		}
-		if elem.keyHash == marked || elem.keyHash < h {
+		if elem.keyHash == marked || elem.keyHash <= h {
 			continue
 		} else {
 			break
