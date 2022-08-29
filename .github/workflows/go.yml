@@ -19,4 +19,5 @@ jobs:
 
     - name: Test
       run: |
-        go test *.go
+        go test tests/0_hash_key_test.go
+        go test tests/e2e_test.go

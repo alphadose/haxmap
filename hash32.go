@@ -1,6 +1,6 @@
 //go:build 386 || arm || mips || mipsle
 
-package hash
+package haxmap
 
 import (
 	"encoding/binary"

@@ -5,8 +5,6 @@ import (
 	"strconv"
 	"sync/atomic"
 	"unsafe"
-
-	"github.com/alphadose/haxmap/hash"
 )
 
 const (
@@ -40,7 +38,7 @@ type (
 	}
 
 	hashMapData[K hashable, V any] struct {
-		keyshifts uintptr        // Pointer size - log2 of array size, to be used as index in the data array
+		Keyshifts uintptr        // Pointer size - log2 of array size, to be used as index in the data array
 		count     atomic.Uintptr // count of filled elements in the slice
 		data      unsafe.Pointer // pointer to slice data array
 		index     []*element[K, V]
@@ -50,7 +48,7 @@ type (
 	HashMap[K hashable, V any] struct {
 		listHead *element[K, V] // key sorted linked list of elements
 		hasher   func(K) uintptr
-		datamap  atomic.Pointer[hashMapData[K, V]] // pointer to a map instance that gets replaced if the map resizes
+		Datamap  atomic.Pointer[hashMapData[K, V]] // pointer to a map instance that gets replaced if the map resizes
 		resizing atomic.Uint32
 		numItems atomic.Uintptr
 	}
@@ -69,32 +67,32 @@ func New[K hashable, V any](size ...uintptr) *HashMap[K, V] {
 	switch any(*new(K)).(type) {
 	case int, uint, uintptr:
 		m.hasher = func(key K) uintptr {
-			return hash.Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), intSizeBytes))
+			return Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), intSizeBytes))
 		}
 	case int8, uint8:
 		m.hasher = func(key K) uintptr {
-			return hash.Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), byteSize))
+			return Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), byteSize))
 		}
 	case int16, uint16:
 		m.hasher = func(key K) uintptr {
-			return hash.Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), wordSize))
+			return Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), wordSize))
 		}
 	case int32, uint32, float32:
 		m.hasher = func(key K) uintptr {
-			return hash.Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), dwordSize))
+			return Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), dwordSize))
 		}
 	case int64, uint64, float64, complex64:
 		m.hasher = func(key K) uintptr {
-			return hash.Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), qwordSize))
+			return Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), qwordSize))
 		}
 	case complex128:
 		m.hasher = func(key K) uintptr {
-			return hash.Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), owordSize))
+			return Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), owordSize))
 		}
 	case string:
 		m.hasher = func(key K) uintptr {
 			sh := (*reflect.StringHeader)(unsafe.Pointer(&key))
-			return hash.Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), sh.Len))
+			return Sum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), sh.Len))
 		}
 	}
 	return m
@@ -102,7 +100,7 @@ func New[K hashable, V any](size ...uintptr) *HashMap[K, V] {
 
 // returns the index of a hash key, returns `nil` if absent
 func (mapData *hashMapData[K, V]) indexElement(hashedKey uintptr) *element[K, V] {
-	index := hashedKey >> mapData.keyshifts
+	index := hashedKey >> mapData.Keyshifts
 	ptr := (*unsafe.Pointer)(unsafe.Pointer(uintptr(mapData.data) + index*intSizeBytes))
 	item := (*element[K, V])(atomic.LoadPointer(ptr))
 	for (item == nil || hashedKey < item.keyHash) && index > 0 {
@@ -117,7 +115,7 @@ func (mapData *hashMapData[K, V]) indexElement(hashedKey uintptr) *element[K, V]
 func (m *HashMap[K, V]) Del(key K) {
 	h := m.hasher(key)
 
-	element := m.datamap.Load().indexElement(h)
+	element := m.Datamap.Load().indexElement(h)
 loop:
 	for ; element != nil; element = element.next() {
 		if element.keyHash == h && element.key == key {
@@ -132,17 +130,17 @@ loop:
 	}
 	element.remove()
 	for {
-		data := m.datamap.Load()
-		index := element.keyHash >> data.keyshifts
+		data := m.Datamap.Load()
+		index := element.keyHash >> data.Keyshifts
 		ptr := (*unsafe.Pointer)(unsafe.Pointer(uintptr(data.data) + index*intSizeBytes))
 
 		next := element.next()
-		if next != nil && element.keyHash>>data.keyshifts != index {
+		if next != nil && element.keyHash>>data.Keyshifts != index {
 			next = nil // do not set index to next item if it's not the same slice index
 		}
 		atomic.CompareAndSwapPointer(ptr, unsafe.Pointer(element), unsafe.Pointer(next))
 
-		if data == m.datamap.Load() { // check that no resize happened
+		if data == m.Datamap.Load() { // check that no resize happened
 			m.numItems.Add(marked)
 			return
 		}
@@ -153,7 +151,7 @@ loop:
 func (m *HashMap[K, V]) Get(key K) (value V, ok bool) {
 	h := m.hasher(key)
 	// inline search
-	for elem := m.datamap.Load().indexElement(h); elem != nil; elem = elem.nextPtr.Load() {
+	for elem := m.Datamap.Load().indexElement(h); elem != nil; elem = elem.nextPtr.Load() {
 		if elem.keyHash == h && elem.key == key {
 			value, ok = *elem.value.Load(), true
 			return
@@ -177,7 +175,7 @@ func (m *HashMap[K, V]) Set(key K, value V) {
 		created = false
 	)
 	for {
-		data := m.datamap.Load()
+		data := m.Datamap.Load()
 		if data == nil {
 			m.Grow(DefaultSize)
 			continue // read mapdata and slice item again
@@ -200,7 +198,7 @@ func (m *HashMap[K, V]) Set(key K, value V) {
 
 // adds an item to the index if needed and returns the new item counter if it changed, otherwise 0
 func (mapData *hashMapData[K, V]) addItemToIndex(item *element[K, V]) uintptr {
-	index := item.keyHash >> mapData.keyshifts
+	index := item.keyHash >> mapData.Keyshifts
 	ptr := (*unsafe.Pointer)(unsafe.Pointer(uintptr(mapData.data) + index*intSizeBytes))
 
 	for { // loop until the smallest key hash is in the index
@@ -228,7 +226,7 @@ func (m *HashMap[K, V]) fillIndexItems(mapData *hashMapData[K, V]) {
 	lastIndex := uintptr(0)
 
 	for item != nil {
-		index := item.keyHash >> mapData.keyshifts
+		index := item.keyHash >> mapData.Keyshifts
 		if item == first || index != lastIndex { // store item with smallest hash key for every index
 			mapData.addItemToIndex(item)
 			lastIndex = index
@@ -266,7 +264,7 @@ func (m *HashMap[K, V]) Len() uintptr {
 
 // Fillrate returns the fill rate of the map as an percentage integer.
 func (m *HashMap[K, V]) Fillrate() uintptr {
-	data := m.datamap.Load()
+	data := m.Datamap.Load()
 	return (data.count.Load() * 100) / uintptr(len(data.index))
 }
 
@@ -281,7 +279,7 @@ func (m *HashMap[K, V]) grow(newSize uintptr, loop bool) {
 	defer m.resizing.CompareAndSwap(resizingInProgress, notResizing)
 
 	for {
-		currentStore := m.datamap.Load()
+		currentStore := m.Datamap.Load()
 		if newSize == 0 {
 			newSize = uintptr(len(currentStore.index)) << 1
 		} else {
@@ -292,14 +290,14 @@ func (m *HashMap[K, V]) grow(newSize uintptr, loop bool) {
 		header := (*reflect.SliceHeader)(unsafe.Pointer(&index))
 
 		newdata := &hashMapData[K, V]{
-			keyshifts: strconv.IntSize - log2(newSize),
+			Keyshifts: strconv.IntSize - log2(newSize),
 			data:      unsafe.Pointer(header.Data), // use address of slice data storage
 			index:     index,
 		}
 
 		m.fillIndexItems(newdata) // initialize new index slice with longer keys
 
-		m.datamap.Store(newdata)
+		m.Datamap.Store(newdata)
 
 		m.fillIndexItems(newdata) // make sure that the new index is up-to-date with the current state of the linked list
 
