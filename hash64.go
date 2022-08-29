@@ -123,11 +123,12 @@ func rol23(x uint64) uint64 { return bits.RotateLeft64(x, 23) }
 func rol27(x uint64) uint64 { return bits.RotateLeft64(x, 27) }
 func rol31(x uint64) uint64 { return bits.RotateLeft64(x, 31) }
 
-// xxHash implementation for known key type sizes
-// minimal hash functions with no branching
-
 func (m *HashMap[K, V]) setDefaultHasher() {
 	// default hash functions
+	// xxHash implementation for known key type sizes
+	// minimal hash functions with no branching
+	// inline hash function assignment for better performance
+
 	switch any(*new(K)).(type) {
 	case string:
 		m.hasher = func(key K) uintptr {
@@ -164,6 +165,7 @@ func (m *HashMap[K, V]) setDefaultHasher() {
 				return uintptr(h)
 			}
 		case 4:
+			// Dword hasher
 			m.hasher = func(key K) uintptr {
 				b := *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
 					Data: uintptr(unsafe.Pointer(&key)),

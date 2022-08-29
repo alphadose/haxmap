@@ -192,6 +192,7 @@ func (m *HashMap[K, V]) ForEach(lambda func(K, V)) {
 // To double the size of the hashmap use newSize 0
 // This function returns immediately, the resize operation is done in a goroutine
 // No resizing is done in case of another resize operation already being in progress
+// Growth and map bucket policy is inspired from https://github.com/cornelk/hashmap
 func (m *HashMap[K, V]) Grow(newSize uintptr) {
 	if m.resizing.CompareAndSwap(notResizing, resizingInProgress) {
 		m.grow(newSize, true)
