@@ -227,11 +227,11 @@ func (m *HashMap[K, V]) hashOword(key K) uintptr {
 
 func (m *HashMap[K, V]) hashString(key K) uintptr {
 	sh := (*reflect.StringHeader)(unsafe.Pointer(&key))
-	return uintptr(defaultSum(unsafe.Slice((*byte)(unsafe.Pointer(&reflect.SliceHeader{
+	return uintptr(defaultSum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
 		Data: sh.Data,
 		Len:  sh.Len,
 		Cap:  sh.Len,
-	})), sh.Len)))
+	}))))
 }
 
 func (m *HashMap[K, V]) setDefaultHasher() {
