@@ -152,11 +152,11 @@ func (m *HashMap[K, V]) setDefaultHasher() {
 	case string:
 		m.hasher = func(key K) uintptr {
 			sh := (*reflect.StringHeader)(unsafe.Pointer(&key))
-			return uintptr(defaultSum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+			return defaultSum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
 				Data: sh.Data,
 				Len:  sh.Len,
 				Cap:  sh.Len,
-			}))))
+			})))
 		}
 	}
 }

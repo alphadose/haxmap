@@ -138,7 +138,7 @@ func (m *HashMap[K, V]) Set(key K, value V) {
 
 		count := data.addItemToIndex(alloc)
 		if resizeNeeded(uintptr(len(data.index)), count) && m.resizing.CompareAndSwap(notResizing, resizingInProgress) {
-			go m.grow(0, true)
+			m.grow(0, true)
 		}
 		return
 	}
