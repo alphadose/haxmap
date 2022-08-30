@@ -68,9 +68,9 @@ All results were computed from [benchstat](https://pkg.go.dev/golang.org/x/perf/
 1. Concurrent Reads Only
 ```
 name                         time/op
-HaxMapReadsOnly-8            9.18µs ±12%
-GoSyncMapReadsOnly-8         22.5µs ± 5%
-CornelkMapReadsOnly-8        10.4µs ± 4%
+HaxMapReadsOnly-8            9.82µs ±15%
+GoSyncMapReadsOnly-8         25.0µs ±11%
+CornelkMapReadsOnly-8        11.3µs ±15%
 
 name                         alloc/op
 HaxMapReadsOnly-8             0.00B
@@ -87,19 +87,19 @@ CornelkMapReadsOnly-8          0.00
 2. Concurrent Reads with Writes
 ```
 name                         time/op
-HaxMapReadsWithWrites-8      10.5µs ± 7%
-GoSyncMapReadsWithWrites-8   25.6µs ± 7%
-CornelkMapReadsWithWrites-8  12.3µs ± 6%
+HaxMapReadsWithWrites-8      11.3µs ±12%
+GoSyncMapReadsWithWrites-8   28.3µs ±16%
+CornelkMapReadsWithWrites-8  13.1µs ±12%
 
 name                         alloc/op
-HaxMapReadsWithWrites-8      1.28kB ± 5%
-GoSyncMapReadsWithWrites-8   6.23kB ± 6%
-CornelkMapReadsWithWrites-8  5.89kB ± 7%
+HaxMapReadsWithWrites-8      1.23kB ± 8%
+GoSyncMapReadsWithWrites-8   5.84kB ±10%
+CornelkMapReadsWithWrites-8  5.11kB ± 9%
 
 name                         allocs/op
-HaxMapReadsWithWrites-8         159 ± 5%
-GoSyncMapReadsWithWrites-8      577 ± 6%
-CornelkMapReadsWithWrites-8     210 ± 8%
+HaxMapReadsWithWrites-8         154 ± 9%
+GoSyncMapReadsWithWrites-8      541 ±10%
+CornelkMapReadsWithWrites-8     182 ± 9%
 ```
 
 From the above results it is evident that `haxmap` takes the least time, memory and allocations in all cases making it the best golang concurrent hashmap in this period of time

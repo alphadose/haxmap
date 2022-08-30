@@ -1,0 +1,200 @@
+goos: darwin
+goarch: arm64
+BenchmarkHaxMapReadsOnly-8             	  137290	      8963 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHaxMapReadsWithWrites-8       	  116986	     10257 ns/op	    1240 B/op	     155 allocs/op
+BenchmarkGoSyncMapReadsOnly-8          	   58604	     19748 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGoSyncMapReadsWithWrites-8    	   52668	     22710 ns/op	    5776 B/op	     535 allocs/op
+BenchmarkCornelkMapReadsOnly-8         	  123502	      9597 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCornelkMapReadsWithWrites-8   	  111313	     10913 ns/op	    4933 B/op	     176 allocs/op
+PASS
+ok  	command-line-arguments	9.401s
+goos: darwin
+goarch: arm64
+BenchmarkHaxMapReadsOnly-8             	  133843	      8415 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHaxMapReadsWithWrites-8       	  122829	      9961 ns/op	    1267 B/op	     158 allocs/op
+BenchmarkGoSyncMapReadsOnly-8          	   58078	     21267 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGoSyncMapReadsWithWrites-8    	   49398	     23728 ns/op	    5634 B/op	     522 allocs/op
+BenchmarkCornelkMapReadsOnly-8         	  128107	      9769 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCornelkMapReadsWithWrites-8   	  105570	     11630 ns/op	    4919 B/op	     175 allocs/op
+PASS
+ok  	command-line-arguments	8.282s
+goos: darwin
+goarch: arm64
+BenchmarkHaxMapReadsOnly-8             	  127102	      8693 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHaxMapReadsWithWrites-8       	  108489	     10033 ns/op	    1247 B/op	     155 allocs/op
+BenchmarkGoSyncMapReadsOnly-8          	   54864	     22314 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGoSyncMapReadsWithWrites-8    	   45908	     25458 ns/op	    6107 B/op	     566 allocs/op
+BenchmarkCornelkMapReadsOnly-8         	  111400	     10204 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCornelkMapReadsWithWrites-8   	  102932	     11984 ns/op	    5277 B/op	     188 allocs/op
+PASS
+ok  	command-line-arguments	8.099s
+goos: darwin
+goarch: arm64
+BenchmarkHaxMapReadsOnly-8             	  131020	      9175 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHaxMapReadsWithWrites-8       	  114928	     10502 ns/op	    1200 B/op	     150 allocs/op
+BenchmarkGoSyncMapReadsOnly-8          	   51066	     22955 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGoSyncMapReadsWithWrites-8    	   46172	     26133 ns/op	    5805 B/op	     538 allocs/op
+BenchmarkCornelkMapReadsOnly-8         	  114662	     10877 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCornelkMapReadsWithWrites-8   	  102745	     12294 ns/op	    4804 B/op	     171 allocs/op
+PASS
+ok  	command-line-arguments	8.422s
+goos: darwin
+goarch: arm64
+BenchmarkHaxMapReadsOnly-8             	  126894	      9293 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHaxMapReadsWithWrites-8       	  116582	     11131 ns/op	    1140 B/op	     142 allocs/op
+BenchmarkGoSyncMapReadsOnly-8          	   47098	     25391 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGoSyncMapReadsWithWrites-8    	   44319	     30389 ns/op	    5234 B/op	     485 allocs/op
+BenchmarkCornelkMapReadsOnly-8         	  113659	     10723 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCornelkMapReadsWithWrites-8   	   94192	     12842 ns/op	    5096 B/op	     182 allocs/op
+PASS
+ok  	command-line-arguments	8.645s
+goos: darwin
+goarch: arm64
+BenchmarkHaxMapReadsOnly-8             	  108921	      9384 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHaxMapReadsWithWrites-8       	  108912	     10729 ns/op	    1269 B/op	     158 allocs/op
+BenchmarkGoSyncMapReadsOnly-8          	   51124	     24121 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGoSyncMapReadsWithWrites-8    	   41920	     26868 ns/op	    6261 B/op	     580 allocs/op
+BenchmarkCornelkMapReadsOnly-8         	  107331	     10976 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCornelkMapReadsWithWrites-8   	   91562	     12603 ns/op	    5278 B/op	     188 allocs/op
+PASS
+ok  	command-line-arguments	8.330s
+goos: darwin
+goarch: arm64
+BenchmarkHaxMapReadsOnly-8             	  121893	      9528 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHaxMapReadsWithWrites-8       	   99525	     12185 ns/op	    1372 B/op	     171 allocs/op
+BenchmarkGoSyncMapReadsOnly-8          	   50720	     24313 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGoSyncMapReadsWithWrites-8    	   43544	     27485 ns/op	    6001 B/op	     556 allocs/op
+BenchmarkCornelkMapReadsOnly-8         	  114090	     11274 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCornelkMapReadsWithWrites-8   	   93196	     12869 ns/op	    5564 B/op	     198 allocs/op
+PASS
+ok  	command-line-arguments	8.560s
+goos: darwin
+goarch: arm64
+BenchmarkHaxMapReadsOnly-8             	  105861	      9602 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHaxMapReadsWithWrites-8       	  105476	     11153 ns/op	    1292 B/op	     161 allocs/op
+BenchmarkGoSyncMapReadsOnly-8          	   51057	     24087 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGoSyncMapReadsWithWrites-8    	   43777	     27323 ns/op	    5751 B/op	     533 allocs/op
+BenchmarkCornelkMapReadsOnly-8         	  112531	     11759 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCornelkMapReadsWithWrites-8   	   92540	     12959 ns/op	    5326 B/op	     190 allocs/op
+PASS
+ok  	command-line-arguments	8.461s
+goos: darwin
+goarch: arm64
+BenchmarkHaxMapReadsOnly-8             	  124146	      9998 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHaxMapReadsWithWrites-8       	  113457	     11414 ns/op	    1349 B/op	     168 allocs/op
+BenchmarkGoSyncMapReadsOnly-8          	   49989	     25788 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGoSyncMapReadsWithWrites-8    	   42470	     29077 ns/op	    5686 B/op	     527 allocs/op
+BenchmarkCornelkMapReadsOnly-8         	  106138	     13393 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCornelkMapReadsWithWrites-8   	   93746	     13343 ns/op	    4812 B/op	     171 allocs/op
+PASS
+ok  	command-line-arguments	9.940s
+goos: darwin
+goarch: arm64
+BenchmarkHaxMapReadsOnly-8             	  120586	     11043 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHaxMapReadsWithWrites-8       	   93226	     11706 ns/op	    1267 B/op	     158 allocs/op
+BenchmarkGoSyncMapReadsOnly-8          	   44179	     26046 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGoSyncMapReadsWithWrites-8    	   41589	     28890 ns/op	    5477 B/op	     507 allocs/op
+BenchmarkCornelkMapReadsOnly-8         	  106339	     11882 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCornelkMapReadsWithWrites-8   	   91642	     13966 ns/op	    5361 B/op	     191 allocs/op
+PASS
+ok  	command-line-arguments	9.693s
+goos: darwin
+goarch: arm64
+BenchmarkHaxMapReadsOnly-8             	  105867	     10325 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHaxMapReadsWithWrites-8       	   95413	     12104 ns/op	    1257 B/op	     157 allocs/op
+BenchmarkGoSyncMapReadsOnly-8          	   45840	     24487 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGoSyncMapReadsWithWrites-8    	   44113	     28314 ns/op	    6442 B/op	     597 allocs/op
+BenchmarkCornelkMapReadsOnly-8         	  101728	     11894 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCornelkMapReadsWithWrites-8   	   75547	     13291 ns/op	    5264 B/op	     188 allocs/op
+PASS
+ok  	command-line-arguments	8.332s
+goos: darwin
+goarch: arm64
+BenchmarkHaxMapReadsOnly-8             	  110785	     10019 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHaxMapReadsWithWrites-8       	  104233	     11195 ns/op	    1214 B/op	     151 allocs/op
+BenchmarkGoSyncMapReadsOnly-8          	   49453	     24712 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGoSyncMapReadsWithWrites-8    	   43090	     27852 ns/op	    5516 B/op	     511 allocs/op
+BenchmarkCornelkMapReadsOnly-8         	  111591	     11215 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCornelkMapReadsWithWrites-8   	   93159	     12980 ns/op	    5205 B/op	     185 allocs/op
+PASS
+ok  	command-line-arguments	8.459s
+goos: darwin
+goarch: arm64
+BenchmarkHaxMapReadsOnly-8             	  111686	      9951 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHaxMapReadsWithWrites-8       	  101820	     11728 ns/op	    1215 B/op	     151 allocs/op
+BenchmarkGoSyncMapReadsOnly-8          	   48898	     24583 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGoSyncMapReadsWithWrites-8    	   44281	     28699 ns/op	    6030 B/op	     559 allocs/op
+BenchmarkCornelkMapReadsOnly-8         	  105266	     11544 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCornelkMapReadsWithWrites-8   	   94090	     13154 ns/op	    5000 B/op	     178 allocs/op
+PASS
+ok  	command-line-arguments	8.546s
+goos: darwin
+goarch: arm64
+BenchmarkHaxMapReadsOnly-8             	  113810	      9854 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHaxMapReadsWithWrites-8       	  108961	     11367 ns/op	    1215 B/op	     151 allocs/op
+BenchmarkGoSyncMapReadsOnly-8          	   48178	     25148 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGoSyncMapReadsWithWrites-8    	   36096	     30180 ns/op	    5603 B/op	     519 allocs/op
+BenchmarkCornelkMapReadsOnly-8         	  110091	     11485 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCornelkMapReadsWithWrites-8   	   90997	     13253 ns/op	    4887 B/op	     174 allocs/op
+PASS
+ok  	command-line-arguments	8.454s
+goos: darwin
+goarch: arm64
+BenchmarkHaxMapReadsOnly-8             	   92625	     11284 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHaxMapReadsWithWrites-8       	   89648	     12615 ns/op	    1258 B/op	     157 allocs/op
+BenchmarkGoSyncMapReadsOnly-8          	   45105	     27495 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGoSyncMapReadsWithWrites-8    	   40776	     29543 ns/op	    5941 B/op	     551 allocs/op
+BenchmarkCornelkMapReadsOnly-8         	  107670	     11992 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCornelkMapReadsWithWrites-8   	   81139	     14061 ns/op	    5309 B/op	     189 allocs/op
+PASS
+ok  	command-line-arguments	8.477s
+goos: darwin
+goarch: arm64
+BenchmarkHaxMapReadsOnly-8             	  112261	     10391 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHaxMapReadsWithWrites-8       	  106689	     11759 ns/op	    1206 B/op	     150 allocs/op
+BenchmarkGoSyncMapReadsOnly-8          	   48585	     25694 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGoSyncMapReadsWithWrites-8    	   37974	     30183 ns/op	    5828 B/op	     540 allocs/op
+BenchmarkCornelkMapReadsOnly-8         	  106399	     11671 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCornelkMapReadsWithWrites-8   	   88276	     13902 ns/op	    4983 B/op	     177 allocs/op
+PASS
+ok  	command-line-arguments	8.571s
+goos: darwin
+goarch: arm64
+BenchmarkHaxMapReadsOnly-8             	  116324	     10275 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHaxMapReadsWithWrites-8       	   99028	     11690 ns/op	    1244 B/op	     155 allocs/op
+BenchmarkGoSyncMapReadsOnly-8          	   46360	     25382 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGoSyncMapReadsWithWrites-8    	   41484	     29240 ns/op	    6207 B/op	     575 allocs/op
+BenchmarkCornelkMapReadsOnly-8         	  105748	     11860 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCornelkMapReadsWithWrites-8   	   86810	     13953 ns/op	    4993 B/op	     178 allocs/op
+PASS
+ok  	command-line-arguments	8.526s
+goos: darwin
+goarch: arm64
+BenchmarkHaxMapReadsOnly-8             	  110042	     10169 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHaxMapReadsWithWrites-8       	  103587	     11662 ns/op	    1237 B/op	     154 allocs/op
+BenchmarkGoSyncMapReadsOnly-8          	   45541	     25792 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGoSyncMapReadsWithWrites-8    	   40347	     29235 ns/op	    6165 B/op	     571 allocs/op
+BenchmarkCornelkMapReadsOnly-8         	  103125	     11866 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCornelkMapReadsWithWrites-8   	   87055	     13763 ns/op	    5422 B/op	     193 allocs/op
+PASS
+ok  	command-line-arguments	8.446s
+goos: darwin
+goarch: arm64
+BenchmarkHaxMapReadsOnly-8             	  110598	      9942 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHaxMapReadsWithWrites-8       	  105129	     11520 ns/op	    1229 B/op	     153 allocs/op
+BenchmarkGoSyncMapReadsOnly-8          	   48172	     25877 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGoSyncMapReadsWithWrites-8    	   41655	     30006 ns/op	    5752 B/op	     533 allocs/op
+BenchmarkCornelkMapReadsOnly-8         	  105224	     11693 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCornelkMapReadsWithWrites-8   	   84748	     13405 ns/op	    4907 B/op	     175 allocs/op
+PASS
+ok  	command-line-arguments	8.646s
+goos: darwin
+goarch: arm64
+BenchmarkHaxMapReadsOnly-8             	  118464	     10087 ns/op	       0 B/op	       0 allocs/op
+BenchmarkHaxMapReadsWithWrites-8       	  101415	     11560 ns/op	    1207 B/op	     150 allocs/op
+BenchmarkGoSyncMapReadsOnly-8          	   46292	     25674 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGoSyncMapReadsWithWrites-8    	   40149	     28945 ns/op	    5597 B/op	     519 allocs/op
+BenchmarkCornelkMapReadsOnly-8         	   99123	     11633 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCornelkMapReadsWithWrites-8   	   82366	     13479 ns/op	    4795 B/op	     171 allocs/op
+PASS
+ok  	command-line-arguments	9.495s
