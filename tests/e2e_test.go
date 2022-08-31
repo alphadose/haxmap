@@ -87,13 +87,9 @@ func TestGet(t *testing.T) {
 func TestGrow(t *testing.T) {
 	m := haxmap.New[uint, uint]()
 	m.Grow(63)
-
-	// make sure to wait for resize operation to finish
-	time.Sleep(43 * time.Millisecond)
-
 	d := m.Datamap.Load()
 	if d.Keyshifts != 58 {
-		t.Error("Grow operation did not result in correct internal map data structure.")
+		t.Errorf("Grow operation did not result in correct internal map data structure, Dump -> %#v", d)
 	}
 }
 
@@ -249,4 +245,23 @@ func TestMapConcurrentWrites(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+// Collision test case when hash key is 0 in value for all entries
+func TestHash0Collision(t *testing.T) {
+	m := haxmap.New[string, int]()
+	staticHasher := func(key string) uintptr {
+		return 0
+	}
+	m.SetHasher(staticHasher)
+	m.Set("1", 1)
+	m.Set("2", 2)
+	_, ok := m.Get("1")
+	if !ok {
+		t.Error("1 not found")
+	}
+	_, ok = m.Get("2")
+	if !ok {
+		t.Error("2 not found")
+	}
 }
