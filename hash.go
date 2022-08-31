@@ -1,4 +1,4 @@
-//go:build amd64 || arm64 || mips64 || mips64le || ppc64 || ppc64le || riscv64 || s390x || wasm
+package haxmap
 
 /*
 From https://github.com/cespare/xxhash
@@ -25,13 +25,20 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-package haxmap
-
 import (
 	"encoding/binary"
 	"math/bits"
 	"reflect"
 	"unsafe"
+)
+
+const (
+	// hash input allowed sizes
+	byteSize = 1 << iota
+	wordSize
+	dwordSize
+	qwordSize
+	owordSize
 )
 
 const (
