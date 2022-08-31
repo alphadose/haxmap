@@ -77,12 +77,67 @@ func rol23(x uint64) uint64 { return bits.RotateLeft64(x, 23) }
 func rol27(x uint64) uint64 { return bits.RotateLeft64(x, 27) }
 func rol31(x uint64) uint64 { return bits.RotateLeft64(x, 31) }
 
+// xxHash implementation for known key type sizes, minimal with no branching
+var (
+	// byte hasher, key size -> 1 byte
+	byteHasher = func(key uint8) uintptr {
+		h := prime5 + 1
+		h ^= uint64(key) * prime5
+		h = bits.RotateLeft64(h, 11) * prime1
+		h ^= h >> 33
+		h *= prime2
+		h ^= h >> 29
+		h *= prime3
+		h ^= h >> 32
+		return uintptr(h)
+	}
+
+	// word hasher, key size -> 2 bytes
+	wordHasher = func(key uint16) uintptr {
+		h := prime5 + 2
+		h ^= (uint64(key) & 0xff) * prime5
+		h = bits.RotateLeft64(h, 11) * prime1
+		h ^= ((uint64(key) >> 8) & 0xff) * prime5
+		h = bits.RotateLeft64(h, 11) * prime1
+		h ^= h >> 33
+		h *= prime2
+		h ^= h >> 29
+		h *= prime3
+		h ^= h >> 32
+		return uintptr(h)
+	}
+
+	// dword hasher, key size -> 4 bytes
+	dwordHasher = func(key uint32) uintptr {
+		h := prime5 + 4
+		h ^= uint64(key) * prime1
+		h = bits.RotateLeft64(h, 23)*prime2 + prime3
+		h ^= h >> 33
+		h *= prime2
+		h ^= h >> 29
+		h *= prime3
+		h ^= h >> 32
+		return uintptr(h)
+	}
+
+	// qword hasher, key size -> 8 bytes
+	qwordHasher = func(key uint64) uintptr {
+		k1 := key * prime2
+		k1 = bits.RotateLeft64(k1, 31)
+		k1 *= prime1
+		h := (prime5 + 8) ^ k1
+		h = bits.RotateLeft64(h, 27)*prime1 + prime4
+		h ^= h >> 33
+		h *= prime2
+		h ^= h >> 29
+		h *= prime3
+		h ^= h >> 32
+		return uintptr(h)
+	}
+)
+
 func (m *HashMap[K, V]) setDefaultHasher() {
 	// default hash functions
-	// xxHash implementation for known key type sizes
-	// minimal hash functions with no branching
-	// inline hash function assignment for better performance
-
 	switch any(*new(K)).(type) {
 	case string:
 		// use default xxHash algorithm for key of any size for golang string data type
@@ -143,152 +198,31 @@ func (m *HashMap[K, V]) setDefaultHasher() {
 		switch intSizeBytes {
 		case 2:
 			// word hasher
-			m.hasher = func(key K) uintptr {
-				b := *(*[wordSize]byte)(unsafe.Pointer(&key))
-
-				var h = prime5 + 2
-
-				h ^= uint64(b[0]) * prime5
-				h = bits.RotateLeft64(h, 11) * prime1
-				h ^= uint64(b[1]) * prime5
-				h = bits.RotateLeft64(h, 11) * prime1
-
-				h ^= h >> 33
-				h *= prime2
-				h ^= h >> 29
-				h *= prime3
-				h ^= h >> 32
-
-				return uintptr(h)
-			}
+			m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&wordHasher))
 		case 4:
 			// Dword hasher
-			m.hasher = func(key K) uintptr {
-				b := *(*[dwordSize]byte)(unsafe.Pointer(&key))
-
-				var h = prime5 + 4
-				h ^= (uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24) * prime1
-				h = bits.RotateLeft64(h, 23)*prime2 + prime3
-
-				h ^= h >> 33
-				h *= prime2
-				h ^= h >> 29
-				h *= prime3
-				h ^= h >> 32
-
-				return uintptr(h)
-			}
+			m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&dwordHasher))
 		case 8:
 			// Qword Hash
-			m.hasher = func(key K) uintptr {
-				b := *(*[qwordSize]byte)(unsafe.Pointer(&key))
-				var h = prime5 + 8
-
-				val := uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24 |
-					uint64(b[4])<<32 | uint64(b[5])<<40 | uint64(b[6])<<48 | uint64(b[7])<<56
-
-				k1 := val * prime2
-				k1 = bits.RotateLeft64(k1, 31)
-				k1 *= prime1
-
-				h ^= k1
-				h = bits.RotateLeft64(h, 27)*prime1 + prime4
-
-				h ^= h >> 33
-				h *= prime2
-				h ^= h >> 29
-				h *= prime3
-				h ^= h >> 32
-
-				return uintptr(h)
-			}
+			m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&qwordHasher))
 		}
 	case int8, uint8:
-		// byte word hasher
-		m.hasher = func(key K) uintptr {
-			b := *(*[byteSize]byte)(unsafe.Pointer(&key))
-
-			var h = prime5 + 1
-			h ^= uint64(b[0]) * prime5
-			h = bits.RotateLeft64(h, 11) * prime1
-
-			h ^= h >> 33
-			h *= prime2
-			h ^= h >> 29
-			h *= prime3
-			h ^= h >> 32
-
-			return uintptr(h)
-		}
-
+		// byte hasher
+		m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&byteHasher))
 	case int16, uint16:
 		// word hasher
-		m.hasher = func(key K) uintptr {
-			b := *(*[wordSize]byte)(unsafe.Pointer(&key))
-
-			var h = prime5 + 2
-
-			h ^= uint64(b[0]) * prime5
-			h = bits.RotateLeft64(h, 11) * prime1
-			h ^= uint64(b[1]) * prime5
-			h = bits.RotateLeft64(h, 11) * prime1
-
-			h ^= h >> 33
-			h *= prime2
-			h ^= h >> 29
-			h *= prime3
-			h ^= h >> 32
-
-			return uintptr(h)
-		}
+		m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&wordHasher))
 	case int32, uint32, float32:
 		// Dword hasher
-		m.hasher = func(key K) uintptr {
-			b := *(*[dwordSize]byte)(unsafe.Pointer(&key))
-
-			var h = prime5 + 4
-			h ^= (uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24) * prime1
-			h = bits.RotateLeft64(h, 23)*prime2 + prime3
-
-			h ^= h >> 33
-			h *= prime2
-			h ^= h >> 29
-			h *= prime3
-			h ^= h >> 32
-
-			return uintptr(h)
-		}
+		m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&dwordHasher))
 	case int64, uint64, float64, complex64:
 		// Qword hasher
-		m.hasher = func(key K) uintptr {
-			b := *(*[qwordSize]byte)(unsafe.Pointer(&key))
-
-			var h = prime5 + 8
-
-			val := uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24 |
-				uint64(b[4])<<32 | uint64(b[5])<<40 | uint64(b[6])<<48 | uint64(b[7])<<56
-
-			k1 := val * prime2
-			k1 = bits.RotateLeft64(k1, 31)
-			k1 *= prime1
-
-			h ^= k1
-			h = bits.RotateLeft64(h, 27)*prime1 + prime4
-
-			h ^= h >> 33
-			h *= prime2
-			h ^= h >> 29
-			h *= prime3
-			h ^= h >> 32
-
-			return uintptr(h)
-		}
+		m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&qwordHasher))
 	case complex128:
-		// Oword hasher
+		// Oword hasher, key size -> 16 bytes
 		m.hasher = func(key K) uintptr {
 			b := *(*[owordSize]byte)(unsafe.Pointer(&key))
-
-			var h = prime5 + 16
+			h := prime5 + 16
 
 			val := uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24 |
 				uint64(b[4])<<32 | uint64(b[5])<<40 | uint64(b[6])<<48 | uint64(b[7])<<56

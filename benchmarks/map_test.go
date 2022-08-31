@@ -30,7 +30,7 @@ func setupGoSyncMap() *sync.Map {
 	return m
 }
 
-func setupCornelkMap(b *testing.B) *hashmap.HashMap[uintptr, uintptr] {
+func setupCornelkMap(b *testing.B) *hashmap.Map[uintptr, uintptr] {
 	m := hashmap.NewSized[uintptr, uintptr](mapSize)
 	for i := uintptr(0); i < epochs; i++ {
 		m.Set(i, i)
