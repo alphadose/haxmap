@@ -61,45 +61,35 @@ func main() {
 
 ## Benchmarks
 
-Benchmarks were performed against [golang sync.Map](https://pkg.go.dev/sync#Map) and the latest generics-enabled [cornelk-hashmap](https://github.com/cornelk/hashmap)
+Benchmarks were performed against [golang sync.Map](https://pkg.go.dev/sync#Map) and the latest [cornelk-hashmap](https://github.com/cornelk/hashmap)
 
 All results were computed from [benchstat](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat) of 20 runs (code available [here](./benchmarks))
 
 1. Concurrent Reads Only
 ```
 name                         time/op
-HaxMapReadsOnly-8            9.82µs ±15%
-GoSyncMapReadsOnly-8         25.0µs ±11%
-CornelkMapReadsOnly-8        11.3µs ±15%
-
-name                         alloc/op
-HaxMapReadsOnly-8             0.00B
-GoSyncMapReadsOnly-8          0.00B
-CornelkMapReadsOnly-8         0.00B
-
-name                         allocs/op
-HaxMapReadsOnly-8              0.00
-GoSyncMapReadsOnly-8           0.00
-CornelkMapReadsOnly-8          0.00
+HaxMapReadsOnly-8            8.75µs ± 9%
+GoSyncMapReadsOnly-8         22.0µs ±11%
+CornelkMapReadsOnly-8        9.20µs ±10%
 ```
 
 
 2. Concurrent Reads with Writes
 ```
 name                         time/op
-HaxMapReadsWithWrites-8      11.3µs ±12%
-GoSyncMapReadsWithWrites-8   28.3µs ±16%
-CornelkMapReadsWithWrites-8  13.1µs ±12%
+HaxMapReadsWithWrites-8      10.0µs ± 9%
+GoSyncMapReadsWithWrites-8   24.8µs ±11%
+CornelkMapReadsWithWrites-8  10.5µs ± 9%
 
 name                         alloc/op
-HaxMapReadsWithWrites-8      1.23kB ± 8%
-GoSyncMapReadsWithWrites-8   5.84kB ±10%
-CornelkMapReadsWithWrites-8  5.11kB ± 9%
+HaxMapReadsWithWrites-8      1.29kB ± 6%
+GoSyncMapReadsWithWrites-8   6.20kB ± 5%
+CornelkMapReadsWithWrites-8  1.59kB ±10%
 
 name                         allocs/op
-HaxMapReadsWithWrites-8         154 ± 9%
-GoSyncMapReadsWithWrites-8      541 ±10%
-CornelkMapReadsWithWrites-8     182 ± 9%
+HaxMapReadsWithWrites-8         161 ± 4%
+GoSyncMapReadsWithWrites-8      574 ± 5%
+CornelkMapReadsWithWrites-8     198 ±10%
 ```
 
 From the above results it is evident that `haxmap` takes the least time, memory and allocations in all cases making it the best golang concurrent hashmap in this period of time

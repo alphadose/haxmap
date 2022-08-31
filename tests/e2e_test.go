@@ -2,6 +2,7 @@ package test
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -88,7 +89,9 @@ func TestGrow(t *testing.T) {
 	m := haxmap.New[uint, uint]()
 	m.Grow(63)
 	d := m.Datamap.Load()
-	if d.Keyshifts != 58 {
+	log := int(math.Log2(64))
+	expectedSize := uintptr(strconv.IntSize - log)
+	if d.Keyshifts != expectedSize {
 		t.Errorf("Grow operation did not result in correct internal map data structure, Dump -> %#v", d)
 	}
 }
