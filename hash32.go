@@ -37,6 +37,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import (
 	"encoding/binary"
 	"math/bits"
+	"reflect"
+	"unsafe"
 )
 
 const (
@@ -57,10 +59,10 @@ func defaultSum(b []byte) uintptr {
 	if n < 16 {
 		h32 += prime5
 	} else {
-		v1 := prime1 + prime2
+		v1 := prime1v + prime2
 		v2 := prime2
 		v3 := uint32(0)
-		v4 := -prime1
+		v4 := -prime1v
 		p := 0
 		for n := n - 16; p <= n; p += 16 {
 			sub := b[p:][:16] //BCE hint for compiler
@@ -109,54 +111,32 @@ func (m *HashMap[K, V]) setDefaultHasher() {
 	switch any(*new(K)).(type) {
 	case int, uint, uintptr:
 		m.hasher = func(key K) uintptr {
-			return defaultSum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-				Data: uintptr(unsafe.Pointer(&key)),
-				Len:  intSizeBytes,
-			})))
+			return defaultSum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), intSizeBytes))
 		}
 	case int8, uint8:
 		m.hasher = func(key K) uintptr {
-			return defaultSum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-				Data: uintptr(unsafe.Pointer(&key)),
-				Len:  byteSize,
-			})))
+			return defaultSum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), byteSize))
 		}
 	case int16, uint16:
 		m.hasher = func(key K) uintptr {
-			return defaultSum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-				Data: uintptr(unsafe.Pointer(&key)),
-				Len:  wordSize,
-			})))
+			return defaultSum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), wordSize))
 		}
 	case int32, uint32, float32:
 		m.hasher = func(key K) uintptr {
-			return defaultSum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-				Data: uintptr(unsafe.Pointer(&key)),
-				Len:  dwordSize,
-			})))
+			return defaultSum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), dwordSize))
 		}
 	case int64, uint64, float64, complex64:
 		m.hasher = func(key K) uintptr {
-			return defaultSum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-				Data: uintptr(unsafe.Pointer(&key)),
-				Len:  qwordSize,
-			})))
+			return defaultSum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), qwordSize))
 		}
 	case complex128:
 		m.hasher = func(key K) uintptr {
-			return defaultSum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-				Data: uintptr(unsafe.Pointer(&key)),
-				Len:  owordSize,
-			})))
+			return defaultSum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), owordSize))
 		}
 	case string:
 		m.hasher = func(key K) uintptr {
 			sh := (*reflect.StringHeader)(unsafe.Pointer(&key))
-			return defaultSum(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-				Data: sh.Data,
-				Len:  sh.Len,
-				Cap:  sh.Len,
-			})))
+			return defaultSum(unsafe.Slice((*byte)(unsafe.Pointer(&key)), sh.Len))
 		}
 	}
 }
