@@ -120,9 +120,41 @@ var (
 		return uintptr(h)
 	}
 
+	// separate dword hasher for float32 type
+	// required for casting float32 to unsigned integer type without any loss of bits
+	// Example :- casting uint32(1.3) will drop off the 0.3 decimal part but using *(*uint32)(unsafe.Pointer(&key)) will retain all bits (both the integer as well as the decimal part)
+	// this will ensure correctness of the hash
+	float32Hasher = func(key float32) uintptr {
+		h := prime5 + 4
+		h ^= uint64(*(*uint32)(unsafe.Pointer(&key))) * prime1
+		h = bits.RotateLeft64(h, 23)*prime2 + prime3
+		h ^= h >> 33
+		h *= prime2
+		h ^= h >> 29
+		h *= prime3
+		h ^= h >> 32
+		return uintptr(h)
+	}
+
 	// qword hasher, key size -> 8 bytes
 	qwordHasher = func(key uint64) uintptr {
 		k1 := key * prime2
+		k1 = bits.RotateLeft64(k1, 31)
+		k1 *= prime1
+		h := (prime5 + 8) ^ k1
+		h = bits.RotateLeft64(h, 27)*prime1 + prime4
+		h ^= h >> 33
+		h *= prime2
+		h ^= h >> 29
+		h *= prime3
+		h ^= h >> 32
+		return uintptr(h)
+	}
+
+	// separate qword hasher for float64 type
+	// for reason see definition of float32Hasher on line 127
+	float64Hasher = func(key float64) uintptr {
+		k1 := *(*uint64)(unsafe.Pointer(&key)) * prime2
 		k1 = bits.RotateLeft64(k1, 31)
 		k1 *= prime1
 		h := (prime5 + 8) ^ k1
@@ -212,12 +244,18 @@ func (m *HashMap[K, V]) setDefaultHasher() {
 	case int16, uint16:
 		// word hasher
 		m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&wordHasher))
-	case int32, uint32, float32:
+	case int32, uint32:
 		// Dword hasher
 		m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&dwordHasher))
-	case int64, uint64, float64, complex64:
+	case float32:
+		// custom float32 dword hasher
+		m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&float32Hasher))
+	case int64, uint64, complex64:
 		// Qword hasher
 		m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&qwordHasher))
+	case float64:
+		// custom float64 qword hasher
+		m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&float64Hasher))
 	case complex128:
 		// Oword hasher, key size -> 16 bytes
 		m.hasher = func(key K) uintptr {
