@@ -199,10 +199,14 @@ func (m *HashMap[K, V]) fillIndexItems(mapData *hashMapData[K, V]) {
 }
 
 // ForEach iterates over key-value pairs and executes the lambda provided for each such pair
-func (m *HashMap[K, V]) ForEach(lambda func(K, V)) {
-	for item := m.listHead; item != nil; item = item.next() {
-		if item.keyHash != marked {
-			lambda(item.key, *item.value.Load())
+// lambda must return `true` to continue iteration and `false` to break iteration
+func (m *HashMap[K, V]) ForEach(lambda func(K, V) bool) {
+	for item := m.listHead.nextPtr.Load(); item != nil; item = item.next() {
+		if item.keyHash == marked {
+			continue
+		}
+		if !lambda(item.key, *item.value.Load()) {
+			return
 		}
 	}
 }

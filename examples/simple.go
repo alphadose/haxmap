@@ -22,8 +22,9 @@ func main() {
 	mep.Set(3, "three")
 
 	// ForEach loop to iterate over all key-value pairs and execute the given lambda
-	mep.ForEach(func(key int, value string) {
+	mep.ForEach(func(key int, value string) bool {
 		fmt.Printf("Key -> %d | Value -> %s\n", key, value)
+		return true
 	})
 
 	// delete values

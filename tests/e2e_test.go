@@ -134,8 +134,9 @@ func TestDelete(t *testing.T) {
 func TestIterator(t *testing.T) {
 	m := haxmap.New[int, *Animal]()
 
-	m.ForEach(func(i int, a *Animal) {
+	m.ForEach(func(i int, a *Animal) bool {
 		t.Errorf("map should be empty but got key -> %d and value -> %#v.", i, a)
+		return true
 	})
 
 	itemCount := 16
@@ -144,11 +145,12 @@ func TestIterator(t *testing.T) {
 	}
 
 	counter := 0
-	m.ForEach(func(i int, a *Animal) {
+	m.ForEach(func(i int, a *Animal) bool {
 		if a == nil {
 			t.Error("Expecting an object.")
 		}
 		counter++
+		return true
 	})
 
 	if counter != itemCount {
