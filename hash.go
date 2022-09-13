@@ -166,6 +166,21 @@ var (
 		h ^= h >> 32
 		return uintptr(h)
 	}
+
+	// separate qword hasher for complex64 type
+	complex64Hasher = func(key complex64) uintptr {
+		k1 := *(*uint64)(unsafe.Pointer(&key)) * prime2
+		k1 = bits.RotateLeft64(k1, 31)
+		k1 *= prime1
+		h := (prime5 + 8) ^ k1
+		h = bits.RotateLeft64(h, 27)*prime1 + prime4
+		h ^= h >> 33
+		h *= prime2
+		h ^= h >> 29
+		h *= prime3
+		h ^= h >> 32
+		return uintptr(h)
+	}
 )
 
 func (m *HashMap[K, V]) setDefaultHasher() {
@@ -232,10 +247,10 @@ func (m *HashMap[K, V]) setDefaultHasher() {
 			// word hasher
 			m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&wordHasher))
 		case 4:
-			// Dword hasher
+			// dword hasher
 			m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&dwordHasher))
 		case 8:
-			// Qword Hash
+			// qword hasher
 			m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&qwordHasher))
 		}
 	case int8, uint8:
@@ -245,19 +260,22 @@ func (m *HashMap[K, V]) setDefaultHasher() {
 		// word hasher
 		m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&wordHasher))
 	case int32, uint32:
-		// Dword hasher
+		// dword hasher
 		m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&dwordHasher))
 	case float32:
 		// custom float32 dword hasher
 		m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&float32Hasher))
-	case int64, uint64, complex64:
-		// Qword hasher
+	case int64, uint64:
+		// qword hasher
 		m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&qwordHasher))
 	case float64:
 		// custom float64 qword hasher
 		m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&float64Hasher))
+	case complex64:
+		// custom complex64 qword hasher
+		m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&complex64Hasher))
 	case complex128:
-		// Oword hasher, key size -> 16 bytes
+		// oword hasher, key size -> 16 bytes
 		m.hasher = func(key K) uintptr {
 			b := *(*[owordSize]byte)(unsafe.Pointer(&key))
 			h := prime5 + 16
