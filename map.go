@@ -142,25 +142,24 @@ func (m *HashMap[K, V]) Set(key K, value V) {
 		alloc   *element[K, V]
 		created = false
 	)
-	for {
-		data := m.Datamap.Load()
-		if data == nil {
-			m.Grow(defaultSize)
-			continue // read mapdata and slice item again
-		}
-		existing := data.indexElement(h)
-		if existing == nil {
-			existing = m.listHead
-		}
-		if alloc, created = existing.inject(h, key, valPtr); created {
-			m.numItems.Add(1)
-		}
 
-		count := data.addItemToIndex(alloc)
-		if resizeNeeded(uintptr(len(data.index)), count) && m.resizing.CompareAndSwap(notResizing, resizingInProgress) {
-			m.grow(0, true)
-		}
-		return
+start:
+	data := m.Datamap.Load()
+	if data == nil {
+		m.Grow(defaultSize)
+		goto start // read mapdata and slice item again
+	}
+	existing := data.indexElement(h)
+	if existing == nil || existing.keyHash > h {
+		existing = m.listHead
+	}
+	if alloc, created = existing.inject(h, key, valPtr); created {
+		m.numItems.Add(1)
+	}
+
+	count := data.addItemToIndex(alloc)
+	if resizeNeeded(uintptr(len(data.index)), count) && m.resizing.CompareAndSwap(notResizing, resizingInProgress) {
+		m.grow(0, true)
 	}
 }
 
@@ -272,8 +271,6 @@ func (m *HashMap[K, V]) grow(newSize uintptr, loop bool) {
 		m.fillIndexItems(newdata) // re-index with longer and more widespread keys
 
 		m.Datamap.Store(newdata)
-
-		m.fillIndexItems(newdata) // re-index once again just to be safe
 
 		if !loop {
 			return
