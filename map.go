@@ -79,6 +79,7 @@ func (m *HashMap[K, V]) Del(key K) {
 	h := m.hasher(key)
 
 	element := m.Datamap.Load().indexElement(h)
+	iter := element
 loop:
 	for ; element != nil; element = element.next() {
 		if element.keyHash == h && element.key == key {
@@ -92,8 +93,12 @@ loop:
 		return
 	}
 	element.remove()
-	// ensure complete deletion via iterating the list
-	for iter := m.listHead; iter != nil; iter = iter.next() {
+	// if index element is the same as the element to be deleted then start from list head
+	if element.key == iter.key {
+		iter = m.listHead
+	}
+	// ensure complete deletion by iterating the list from the nearest index whenever possible
+	for ; iter != nil; iter = iter.next() {
 	}
 	for {
 		data := m.Datamap.Load()
