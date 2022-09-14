@@ -92,6 +92,9 @@ loop:
 		return
 	}
 	element.remove()
+	// ensure complete deletion via iterating the list
+	for iter := m.listHead; iter != nil; iter = iter.next() {
+	}
 	for {
 		data := m.Datamap.Load()
 		index := element.keyHash >> data.Keyshifts
@@ -201,7 +204,7 @@ func (m *HashMap[K, V]) fillIndexItems(mapData *hashMapData[K, V]) {
 // ForEach iterates over key-value pairs and executes the lambda provided for each such pair
 // lambda must return `true` to continue iteration and `false` to break iteration
 func (m *HashMap[K, V]) ForEach(lambda func(K, V) bool) {
-	for item := m.listHead.nextPtr.Load(); item != nil; item = item.next() {
+	for item := m.listHead.nextPtr.Load(); item != nil; item = item.nextPtr.Load() {
 		if item.keyHash == marked {
 			continue
 		}

@@ -105,14 +105,10 @@ func (self *element[K, V]) search(c uintptr, key K) (*element[K, V], *element[K,
 }
 
 // remove removes the current node
-func (self *element[K, V]) remove() bool {
+func (self *element[K, V]) remove() {
 	for {
-		if self.next() == nil {
-			return false
-		}
 		if self.add(marked) {
-			self.next()
-			return true
+			return
 		}
 	}
 }
