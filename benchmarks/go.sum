@@ -8,6 +8,8 @@ github.com/cornelk/hashmap v1.0.6 h1:ZNxfMue8uqQdjI36f7e8o8JqqQMcz5ybk7AH5EqfoQM
 github.com/cornelk/hashmap v1.0.6/go.mod h1:DqXRj31DMSQGWQJit5c3jpIErEoTlZYmKhAlBGrf0Sw=
 github.com/cornelk/hashmap v1.0.7 h1:9W5NPASHKJ13gl37bgHNPT4rntj1YFGl5a1Uro7HpA8=
 github.com/cornelk/hashmap v1.0.7/go.mod h1:RfZb7JO3RviW/rT6emczVuC/oxpdz4UsSB2LJSclR1k=
+github.com/cornelk/hashmap v1.0.8 h1:nv0AWgw02n+iDcawr5It4CjQIAcdMMKRrs10HOJYlrc=
+github.com/cornelk/hashmap v1.0.8/go.mod h1:RfZb7JO3RviW/rT6emczVuC/oxpdz4UsSB2LJSclR1k=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/spaolacci/murmur3 v0.0.0-20180118202830-f09979ecbc72 h1:qLC7fQah7D6K1B0ujays3HV9gkFtllcxhzImRR7ArPQ=
