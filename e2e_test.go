@@ -1,4 +1,4 @@
-package test
+package haxmap
 
 import (
 	"fmt"
@@ -8,8 +8,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/alphadose/haxmap"
 )
 
 type Animal struct {
@@ -17,14 +15,14 @@ type Animal struct {
 }
 
 func TestMapCreation(t *testing.T) {
-	m := haxmap.New[int, int]()
+	m := New[int, int]()
 	if m.Len() != 0 {
 		t.Errorf("new map should be empty but has %d items.", m.Len())
 	}
 }
 
 func TestOverwrite(t *testing.T) {
-	m := haxmap.New[uint, string]()
+	m := New[uint, string]()
 	key := uint(1)
 	cat := "cat"
 	tiger := "tiger"
@@ -46,7 +44,7 @@ func TestOverwrite(t *testing.T) {
 }
 
 func TestSet(t *testing.T) {
-	m := haxmap.New[int, string](4)
+	m := New[int, string](4)
 
 	m.Set(4, "cat")
 	m.Set(3, "cat")
@@ -59,7 +57,7 @@ func TestSet(t *testing.T) {
 }
 
 func TestGet(t *testing.T) {
-	m := haxmap.New[string, string]()
+	m := New[string, string]()
 	cat := "cat"
 	key := "animal"
 
@@ -86,18 +84,18 @@ func TestGet(t *testing.T) {
 }
 
 func TestGrow(t *testing.T) {
-	m := haxmap.New[uint, uint]()
+	m := New[uint, uint]()
 	m.Grow(63)
-	d := m.Datamap.Load()
+	d := m.metadata.Load()
 	log := int(math.Log2(64))
 	expectedSize := uintptr(strconv.IntSize - log)
-	if d.Keyshifts != expectedSize {
+	if d.keyshifts != expectedSize {
 		t.Errorf("Grow operation did not result in correct internal map data structure, Dump -> %#v", d)
 	}
 }
 
 func TestDelete(t *testing.T) {
-	m := haxmap.New[int, *Animal]()
+	m := New[int, *Animal]()
 
 	cat := &Animal{"cat"}
 	tiger := &Animal{"tiger"}
@@ -132,7 +130,7 @@ func TestDelete(t *testing.T) {
 }
 
 func TestIterator(t *testing.T) {
-	m := haxmap.New[int, *Animal]()
+	m := New[int, *Animal]()
 
 	m.ForEach(func(i int, a *Animal) bool {
 		t.Errorf("map should be empty but got key -> %d and value -> %#v.", i, a)
@@ -161,7 +159,7 @@ func TestIterator(t *testing.T) {
 func TestMapParallel(t *testing.T) {
 	max := 10
 	dur := 2 * time.Second
-	m := haxmap.New[int, int]()
+	m := New[int, int]()
 	do := func(t *testing.T, max int, d time.Duration, fn func(*testing.T, int)) <-chan error {
 		t.Helper()
 		done := make(chan error)
@@ -229,19 +227,19 @@ func TestMapParallel(t *testing.T) {
 }
 
 func TestMapConcurrentWrites(t *testing.T) {
-	blocks := haxmap.New[string, struct{}]()
+	blocks := New[string, struct{}]()
 
 	var wg sync.WaitGroup
 	for i := 0; i < 100; i++ {
 
 		wg.Add(1)
-		go func(blocks *haxmap.HashMap[string, struct{}], i int) {
+		go func(blocks *Map[string, struct{}], i int) {
 			defer wg.Done()
 
 			blocks.Set(strconv.Itoa(i), struct{}{})
 
 			wg.Add(1)
-			go func(blocks *haxmap.HashMap[string, struct{}], i int) {
+			go func(blocks *Map[string, struct{}], i int) {
 				defer wg.Done()
 
 				blocks.Get(strconv.Itoa(i))
@@ -254,7 +252,7 @@ func TestMapConcurrentWrites(t *testing.T) {
 
 // Collision test case when hash key is 0 in value for all entries
 func TestHash0Collision(t *testing.T) {
-	m := haxmap.New[string, int]()
+	m := New[string, int]()
 	staticHasher := func(key string) uintptr {
 		return 0
 	}
@@ -269,4 +267,21 @@ func TestHash0Collision(t *testing.T) {
 	if !ok {
 		t.Error("2 not found")
 	}
+}
+
+// test map freezing issue
+// https://github.com/alphadose/haxmap/issues/7
+// https://github.com/alphadose/haxmap/issues/8
+// Update:- Solved now
+func TestInfiniteLoop(t *testing.T) {
+	t.Run("infinite loop", func(b *testing.T) {
+		m := New[int, int](512)
+		for i := 0; i < 112050; i++ {
+			if i > 112024 {
+				m.Set(i, i) // set debug point here and step into until .inject
+			} else {
+				m.Set(i, i)
+			}
+		}
+	})
 }

@@ -19,4 +19,4 @@ jobs:
 
     - name: Test
       run: |
-        go test tests/e2e_test.go
+        go test *.go

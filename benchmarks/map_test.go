@@ -14,7 +14,7 @@ const (
 	mapSize         = 256
 )
 
-func setupHaxMap() *haxmap.HashMap[uintptr, uintptr] {
+func setupHaxMap() *haxmap.Map[uintptr, uintptr] {
 	m := haxmap.New[uintptr, uintptr](mapSize)
 	for i := uintptr(0); i < epochs; i++ {
 		m.Set(i, i)

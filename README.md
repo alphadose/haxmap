@@ -3,7 +3,7 @@
 [![Main Actions Status](https://github.com/alphadose/haxmap/workflows/Go/badge.svg)](https://github.com/alphadose/haxmap/actions)
 [![Go Report Card](https://goreportcard.com/badge/github.com/alphadose/haxmap)](https://goreportcard.com/report/github.com/alphadose/haxmap)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE.md)
-> A blazing fast concurrent hashmap
+> A lightning fast concurrent hashmap
 
 The hashing algorithm used was [xxHash](https://github.com/Cyan4973/xxHash) and the hashmap's buckets were implemented using [Harris lock-free list](https://www.cl.cam.ac.uk/research/srg/netos/papers/2001-caslists.pdf)
 

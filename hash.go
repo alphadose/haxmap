@@ -183,7 +183,7 @@ var (
 	}
 )
 
-func (m *HashMap[K, V]) setDefaultHasher() {
+func (m *Map[K, V]) setDefaultHasher() {
 	// default hash functions
 	switch any(*new(K)).(type) {
 	case string:
