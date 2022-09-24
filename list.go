@@ -1,9 +1,5 @@
 package haxmap
 
-import (
-	"sync/atomic"
-)
-
 // mark a node for being deleted, also used as list_head
 // the search() function skips nodes with `keyHash = marked`
 const marked = ^uintptr(0)
@@ -13,7 +9,7 @@ const marked = ^uintptr(0)
 
 // newListHead returns the new head of any list
 func newListHead[K hashable, V any]() *element[K, V] {
-	e := &element[K, V]{marked, *new(K), atomic.Pointer[element[K, V]]{}, atomic.Pointer[V]{}}
+	e := &element[K, V]{marked, *new(K), atomicPointer[element[K, V]]{}, atomicPointer[V]{}}
 	e.nextPtr.Store(nil)
 	e.value.Store(new(V))
 	return e
@@ -24,8 +20,8 @@ type element[K hashable, V any] struct {
 	keyHash uintptr
 	key     K
 	// The next element in the list. If this pointer has the marked flag set it means THIS element, not the next one, is deleted.
-	nextPtr atomic.Pointer[element[K, V]]
-	value   atomic.Pointer[V]
+	nextPtr atomicPointer[element[K, V]]
+	value   atomicPointer[V]
 }
 
 // next returns the next element

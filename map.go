@@ -33,7 +33,7 @@ type (
 	// metadata of the hashmap
 	metadata[K hashable, V any] struct {
 		keyshifts uintptr        //  array_size - log2(array_size)
-		count     atomic.Uintptr // number of filled items
+		count     atomicUintptr  // number of filled items
 		data      unsafe.Pointer // pointer to array of map indexes
 		index     []*element[K, V]
 	}
@@ -42,9 +42,9 @@ type (
 	Map[K hashable, V any] struct {
 		listHead *element[K, V] // Harris lock-free list of elements in ascending order of hash
 		hasher   func(K) uintptr
-		metadata atomic.Pointer[metadata[K, V]] // atomic.Pointer for safe access even during resizing
-		resizing atomic.Uint32
-		numItems atomic.Uintptr
+		metadata atomicPointer[metadata[K, V]] // atomic.Pointer for safe access even during resizing
+		resizing uint32
+		numItems atomicUintptr
 	}
 )
 
@@ -151,7 +151,7 @@ start:
 	}
 
 	count := data.addItemToIndex(alloc)
-	if resizeNeeded(uintptr(len(data.index)), count) && m.resizing.CompareAndSwap(notResizing, resizingInProgress) {
+	if resizeNeeded(uintptr(len(data.index)), count) && atomic.CompareAndSwapUint32(&m.resizing, notResizing, resizingInProgress) {
 		m.grow(0) // double in size
 	}
 }
@@ -175,7 +175,7 @@ func (m *Map[K, V]) ForEach(lambda func(K, V) bool) {
 // No resizing is done in case of another resize operation already being in progress
 // Growth and map bucket policy is inspired from https://github.com/cornelk/hashmap
 func (m *Map[K, V]) Grow(newSize uintptr) {
-	if m.resizing.CompareAndSwap(notResizing, resizingInProgress) {
+	if atomic.CompareAndSwapUint32(&m.resizing, notResizing, resizingInProgress) {
 		m.grow(newSize)
 	}
 }
@@ -198,7 +198,7 @@ func (m *Map[K, V]) Fillrate() uintptr {
 
 // allocate map with the given size
 func (m *Map[K, V]) allocate(newSize uintptr) {
-	if m.resizing.CompareAndSwap(notResizing, resizingInProgress) {
+	if atomic.CompareAndSwapUint32(&m.resizing, notResizing, resizingInProgress) {
 		m.grow(newSize)
 	}
 }
@@ -220,7 +220,7 @@ func (m *Map[K, V]) fillIndexItems(mapData *metadata[K, V]) {
 
 // grow to the new size
 func (m *Map[K, V]) grow(newSize uintptr) {
-	defer m.resizing.CompareAndSwap(resizingInProgress, notResizing)
+	defer atomic.CompareAndSwapUint32(&m.resizing, resizingInProgress, notResizing)
 
 	for {
 		currentStore := m.metadata.Load()
