@@ -9,7 +9,7 @@ The hashing algorithm used was [xxHash](https://github.com/Cyan4973/xxHash) and 
 
 ## Installation
 
-You need Golang [1.19.x](https://go.dev/dl/) or above
+You need Golang [1.18.x](https://go.dev/dl/) or above
 
 ```bash
 $ go get github.com/alphadose/haxmap

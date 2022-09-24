@@ -43,7 +43,7 @@ type (
 		listHead *element[K, V] // Harris lock-free list of elements in ascending order of hash
 		hasher   func(K) uintptr
 		metadata atomicPointer[metadata[K, V]] // atomic.Pointer for safe access even during resizing
-		resizing atomicUInt32
+		resizing atomicUint32
 		numItems atomicUintptr
 	}
 )
