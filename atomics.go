@@ -6,6 +6,12 @@ import (
 	"unsafe"
 )
 
+type atomicUInt32 struct {
+	// Signal to go vet not to copy this type
+	_ sync.Locker
+	v uint32
+}
+
 type atomicPointer[T any] struct {
 	// Signal to go vet not to copy this type
 	_   sync.Locker
@@ -16,6 +22,14 @@ type atomicUintptr struct {
 	// Signal to go vet not to copy this type
 	_   sync.Locker
 	ptr uintptr
+}
+
+func (u *atomicUInt32) Load() uint32            { return atomic.LoadUint32(&u.v) }
+func (u *atomicUInt32) Store(v uint32)          { atomic.StoreUint32(&u.v, v) }
+func (u *atomicUInt32) Add(delta uint32) uint32 { return atomic.AddUint32(&u.v, delta) }
+func (u *atomicUInt32) Swap(v uint32) uint32    { return atomic.SwapUint32(&u.v, v) }
+func (u *atomicUInt32) CompareAndSwap(old, new uint32) bool {
+	return atomic.CompareAndSwapUint32(&u.v, old, new)
 }
 
 func (p *atomicPointer[T]) Load() *T     { return (*T)(atomic.LoadPointer(&p.ptr)) }

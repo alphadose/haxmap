@@ -43,7 +43,7 @@ type (
 		listHead *element[K, V] // Harris lock-free list of elements in ascending order of hash
 		hasher   func(K) uintptr
 		metadata atomicPointer[metadata[K, V]] // atomic.Pointer for safe access even during resizing
-		resizing uint32
+		resizing atomicUInt32
 		numItems atomicUintptr
 	}
 )
@@ -151,7 +151,7 @@ start:
 	}
 
 	count := data.addItemToIndex(alloc)
-	if resizeNeeded(uintptr(len(data.index)), count) && atomic.CompareAndSwapUint32(&m.resizing, notResizing, resizingInProgress) {
+	if resizeNeeded(uintptr(len(data.index)), count) && m.resizing.CompareAndSwap(notResizing, resizingInProgress) {
 		m.grow(0) // double in size
 	}
 }
@@ -175,7 +175,7 @@ func (m *Map[K, V]) ForEach(lambda func(K, V) bool) {
 // No resizing is done in case of another resize operation already being in progress
 // Growth and map bucket policy is inspired from https://github.com/cornelk/hashmap
 func (m *Map[K, V]) Grow(newSize uintptr) {
-	if atomic.CompareAndSwapUint32(&m.resizing, notResizing, resizingInProgress) {
+	if m.resizing.CompareAndSwap(notResizing, resizingInProgress) {
 		m.grow(newSize)
 	}
 }
@@ -198,7 +198,7 @@ func (m *Map[K, V]) Fillrate() uintptr {
 
 // allocate map with the given size
 func (m *Map[K, V]) allocate(newSize uintptr) {
-	if atomic.CompareAndSwapUint32(&m.resizing, notResizing, resizingInProgress) {
+	if m.resizing.CompareAndSwap(notResizing, resizingInProgress) {
 		m.grow(newSize)
 	}
 }
@@ -220,7 +220,7 @@ func (m *Map[K, V]) fillIndexItems(mapData *metadata[K, V]) {
 
 // grow to the new size
 func (m *Map[K, V]) grow(newSize uintptr) {
-	defer atomic.CompareAndSwapUint32(&m.resizing, resizingInProgress, notResizing)
+	defer m.resizing.CompareAndSwap(resizingInProgress, notResizing)
 
 	for {
 		currentStore := m.metadata.Load()
