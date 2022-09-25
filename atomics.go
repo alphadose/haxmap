@@ -1,26 +1,26 @@
 package haxmap
 
 import (
-	"sync"
 	"sync/atomic"
 	"unsafe"
 )
 
+// noCopy implements sync.Locker so that go vet can trigger
+// warnings when types embedding noCopy are copied.
+type noCopy struct{}
+
 type atomicUint32 struct {
-	// Signal to go vet not to copy this type
-	_ sync.Locker
+	_ noCopy
 	v uint32
 }
 
 type atomicPointer[T any] struct {
-	// Signal to go vet not to copy this type
-	_   sync.Locker
+	_   noCopy
 	ptr unsafe.Pointer
 }
 
 type atomicUintptr struct {
-	// Signal to go vet not to copy this type
-	_   sync.Locker
+	_   noCopy
 	ptr uintptr
 }
 
@@ -46,3 +46,6 @@ func (u *atomicUintptr) Swap(v uintptr) uintptr    { return atomic.SwapUintptr(&
 func (u *atomicUintptr) CompareAndSwap(old, new uintptr) bool {
 	return atomic.CompareAndSwapUintptr(&u.ptr, old, new)
 }
+
+func (c *noCopy) Lock()   {}
+func (c *noCopy) Unlock() {}
