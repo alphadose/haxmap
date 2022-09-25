@@ -159,19 +159,12 @@ start:
 // ForEach iterates over key-value pairs and executes the lambda provided for each such pair
 // lambda must return `true` to continue iteration and `false` to break iteration
 func (m *Map[K, V]) ForEach(lambda func(K, V) bool) {
-	for item := m.listHead.nextPtr.Load(); item != nil; item = item.nextPtr.Load() {
-		if item.keyHash == marked {
-			continue
-		}
-		if !lambda(item.key, *item.value.Load()) {
-			return
-		}
+	for item := m.listHead.next(); item != nil && lambda(item.key, *item.value.Load()); item = item.next() {
 	}
 }
 
 // Grow resizes the hashmap to a new size, gets rounded up to next power of 2
 // To double the size of the hashmap use newSize 0
-// This function returns immediately, the resize operation is done in a goroutine
 // No resizing is done in case of another resize operation already being in progress
 // Growth and map bucket policy is inspired from https://github.com/cornelk/hashmap
 func (m *Map[K, V]) Grow(newSize uintptr) {
