@@ -33,7 +33,7 @@ type (
 	// metadata of the hashmap
 	metadata[K hashable, V any] struct {
 		keyshifts uintptr        //  array_size - log2(array_size)
-		count     atomic.Uintptr // number of filled items
+		count     atomicUintptr  // number of filled items
 		data      unsafe.Pointer // pointer to array of map indexes
 		index     []*element[K, V]
 	}
@@ -42,9 +42,9 @@ type (
 	Map[K hashable, V any] struct {
 		listHead *element[K, V] // Harris lock-free list of elements in ascending order of hash
 		hasher   func(K) uintptr
-		metadata atomic.Pointer[metadata[K, V]] // atomic.Pointer for safe access even during resizing
-		resizing atomic.Uint32
-		numItems atomic.Uintptr
+		metadata atomicPointer[metadata[K, V]] // atomic.Pointer for safe access even during resizing
+		resizing atomicUint32
+		numItems atomicUintptr
 	}
 )
 

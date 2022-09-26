@@ -1,3 +1,3 @@
 module github.com/alphadose/haxmap
 
-go 1.19
+go 1.18
