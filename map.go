@@ -64,10 +64,12 @@ func New[K hashable, V any](size ...uintptr) *Map[K, V] {
 // Del deletes the key from the map
 // does nothing if key is absemt
 func (m *Map[K, V]) Del(key K) {
-	h := m.hasher(key)
+	var (
+		h    = m.hasher(key)
+		elem = m.metadata.Load().indexElement(h)
+		iter = elem
+	)
 
-	elem := m.metadata.Load().indexElement(h)
-	iter := elem
 loop:
 	for ; elem != nil; elem = elem.next() {
 		if elem.keyHash == h && elem.key == key {
@@ -130,23 +132,18 @@ func (m *Map[K, V]) Get(key K) (value V, ok bool) {
 // If a resizing operation is happening concurrently while calling Set()
 // then the item might show up in the map only after the resize operation is finished
 func (m *Map[K, V]) Set(key K, value V) {
-	h, valPtr := m.hasher(key), &value
 	var (
-		alloc   *element[K, V]
-		created = false
+		alloc    *element[K, V]
+		h        = m.hasher(key)
+		created  = false
+		data     = m.metadata.Load()
+		existing = data.indexElement(h)
 	)
 
-start:
-	data := m.metadata.Load()
-	if data == nil {
-		m.Grow(defaultSize)
-		goto start // read mapdata and slice item again
-	}
-	existing := data.indexElement(h)
 	if existing == nil || existing.keyHash > h {
 		existing = m.listHead
 	}
-	if alloc, created = existing.inject(h, key, valPtr); created {
+	if alloc, created = existing.inject(h, key, &value); created {
 		m.numItems.Add(1)
 	}
 
@@ -213,8 +210,6 @@ func (m *Map[K, V]) fillIndexItems(mapData *metadata[K, V]) {
 
 // grow to the new size
 func (m *Map[K, V]) grow(newSize uintptr) {
-	defer m.resizing.CompareAndSwap(resizingInProgress, notResizing)
-
 	for {
 		currentStore := m.metadata.Load()
 		if newSize == 0 {
@@ -233,10 +228,10 @@ func (m *Map[K, V]) grow(newSize uintptr) {
 		}
 
 		m.fillIndexItems(newdata) // re-index with longer and more widespread keys
-
 		m.metadata.Store(newdata)
 
 		if !resizeNeeded(newSize, uintptr(m.Len())) {
+			m.resizing.Store(notResizing)
 			return
 		}
 		newSize = 0 // 0 means double the current size

@@ -27,7 +27,8 @@ type element[K hashable, V any] struct {
 // next returns the next element
 // this also deletes all marked elements while traversing the list
 func (self *element[K, V]) next() *element[K, V] {
-	for nextElement := self.nextPtr.Load(); nextElement != nil; {
+	nextElement := self.nextPtr.Load()
+	for nextElement != nil {
 		// if our next element contains marked that means WE are deleted, and we can just return the next-next element
 		if nextElement.keyHash == marked {
 			return nextElement.next()
