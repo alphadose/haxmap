@@ -60,13 +60,12 @@ func New[K hashable, V any](size ...uintptr) *Map[K, V] {
 	return m
 }
 
-// Del deletes the key from the map
+// Del lazily deletes the key from the map
 // does nothing if key is absemt
 func (m *Map[K, V]) Del(key K) {
 	var (
 		h    = m.hasher(key)
 		elem = indexElement[K, V](m.metadata.Load(), h)
-		iter = elem
 	)
 
 loop:
@@ -81,14 +80,10 @@ loop:
 	if elem == nil {
 		return
 	}
+	// mark node for lazily deletion
 	elem.remove()
-	// if index element is the same as the element to be deleted then start from list head
-	if elem.key == iter.key {
-		iter = m.listHead
-	}
-	// ensure complete deletion by iterating the list from the nearest index whenever possible
-	for ; iter != nil; iter = iter.next() {
-	}
+
+	// remove node from map index if exists
 	for {
 		data := m.metadata.Load()
 		index := elem.keyHash >> data.keyshifts
@@ -114,7 +109,11 @@ func (m *Map[K, V]) Get(key K) (value V, ok bool) {
 	// inline search
 	for elem := indexElement[K, V](m.metadata.Load(), h); elem != nil; elem = elem.nextPtr.Load() {
 		if elem.keyHash == h && elem.key == key {
-			value, ok = *elem.value.Load(), true
+			if !elem.isDeleted() {
+				value, ok = *elem.value.Load(), true
+			} else {
+				ok = false
+			}
 			return
 		}
 		if elem.keyHash <= h || elem.keyHash == marked {
