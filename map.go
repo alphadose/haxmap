@@ -1,7 +1,6 @@
 package haxmap
 
 import (
-	"reflect"
 	"strconv"
 	"sync/atomic"
 	"unsafe"
@@ -31,18 +30,18 @@ type (
 	}
 
 	// metadata of the hashmap
-	metadata[K hashable, V any] struct {
+	metadata struct {
 		keyshifts uintptr        //  array_size - log2(array_size)
 		count     atomicUintptr  // number of filled items
 		data      unsafe.Pointer // pointer to array of map indexes
-		index     []*element[K, V]
+		size      uintptr
 	}
 
 	// Map implements the concurrent hashmap
 	Map[K hashable, V any] struct {
 		listHead *element[K, V] // Harris lock-free list of elements in ascending order of hash
 		hasher   func(K) uintptr
-		metadata atomicPointer[metadata[K, V]] // atomic.Pointer for safe access even during resizing
+		metadata atomicPointer[metadata] // atomic.Pointer for safe access even during resizing
 		resizing atomicUint32
 		numItems atomicUintptr
 	}
@@ -66,7 +65,7 @@ func New[K hashable, V any](size ...uintptr) *Map[K, V] {
 func (m *Map[K, V]) Del(key K) {
 	var (
 		h    = m.hasher(key)
-		elem = m.metadata.Load().indexElement(h)
+		elem = indexElement[K, V](m.metadata.Load(), h)
 		iter = elem
 	)
 
@@ -113,7 +112,7 @@ loop:
 func (m *Map[K, V]) Get(key K) (value V, ok bool) {
 	h := m.hasher(key)
 	// inline search
-	for elem := m.metadata.Load().indexElement(h); elem != nil; elem = elem.nextPtr.Load() {
+	for elem := indexElement[K, V](m.metadata.Load(), h); elem != nil; elem = elem.nextPtr.Load() {
 		if elem.keyHash == h && elem.key == key {
 			value, ok = *elem.value.Load(), true
 			return
@@ -137,7 +136,7 @@ func (m *Map[K, V]) Set(key K, value V) {
 		h        = m.hasher(key)
 		created  = false
 		data     = m.metadata.Load()
-		existing = data.indexElement(h)
+		existing = indexElement[K, V](data, h)
 	)
 
 	if existing == nil || existing.keyHash > h {
@@ -147,8 +146,8 @@ func (m *Map[K, V]) Set(key K, value V) {
 		m.numItems.Add(1)
 	}
 
-	count := data.addItemToIndex(alloc)
-	if resizeNeeded(uintptr(len(data.index)), count) && m.resizing.CompareAndSwap(notResizing, resizingInProgress) {
+	count := addItemToIndex(data, alloc)
+	if resizeNeeded(data.size, count) && m.resizing.CompareAndSwap(notResizing, resizingInProgress) {
 		m.grow(0) // double in size
 	}
 }
@@ -183,7 +182,7 @@ func (m *Map[K, V]) Len() uintptr {
 // Fillrate returns the fill rate of the map as an percentage integer
 func (m *Map[K, V]) Fillrate() uintptr {
 	data := m.metadata.Load()
-	return (data.count.Load() * 100) / uintptr(len(data.index))
+	return (data.count.Load() * 100) / data.size
 }
 
 // allocate map with the given size
@@ -194,14 +193,14 @@ func (m *Map[K, V]) allocate(newSize uintptr) {
 }
 
 // fillIndexItems re-indexes the map given the latest state of the linked list
-func (m *Map[K, V]) fillIndexItems(mapData *metadata[K, V]) {
+func (m *Map[K, V]) fillIndexItems(mapData *metadata) {
 	first := m.listHead
 	item := first
 	lastIndex := uintptr(0)
 	for item != nil {
 		index := item.keyHash >> mapData.keyshifts
 		if item == first || index != lastIndex {
-			mapData.addItemToIndex(item)
+			addItemToIndex(mapData, item)
 			lastIndex = index
 		}
 		item = item.next()
@@ -213,18 +212,17 @@ func (m *Map[K, V]) grow(newSize uintptr) {
 	for {
 		currentStore := m.metadata.Load()
 		if newSize == 0 {
-			newSize = uintptr(len(currentStore.index)) << 1
+			newSize = currentStore.size << 1
 		} else {
 			newSize = roundUpPower2(newSize)
 		}
 
 		index := make([]*element[K, V], newSize)
-		header := (*reflect.SliceHeader)(unsafe.Pointer(&index))
 
-		newdata := &metadata[K, V]{
+		newdata := &metadata{
 			keyshifts: strconv.IntSize - log2(newSize),
-			data:      unsafe.Pointer(header.Data),
-			index:     index,
+			data:      unsafe.Pointer(&index[0]),
+			size:      newSize,
 		}
 
 		m.fillIndexItems(newdata) // re-index with longer and more widespread keys
@@ -239,7 +237,7 @@ func (m *Map[K, V]) grow(newSize uintptr) {
 }
 
 // indexElement returns the index of a hash key, returns `nil` if absent
-func (md *metadata[K, V]) indexElement(hashedKey uintptr) *element[K, V] {
+func indexElement[K hashable, V any](md *metadata, hashedKey uintptr) *element[K, V] {
 	index := hashedKey >> md.keyshifts
 	ptr := (*unsafe.Pointer)(unsafe.Pointer(uintptr(md.data) + index*intSizeBytes))
 	item := (*element[K, V])(atomic.LoadPointer(ptr))
@@ -252,7 +250,7 @@ func (md *metadata[K, V]) indexElement(hashedKey uintptr) *element[K, V] {
 }
 
 // addItemToIndex adds an item to the index if needed and returns the new item counter if it changed, otherwise 0
-func (md *metadata[K, V]) addItemToIndex(item *element[K, V]) uintptr {
+func addItemToIndex[K hashable, V any](md *metadata, item *element[K, V]) uintptr {
 	index := item.keyHash >> md.keyshifts
 	ptr := (*unsafe.Pointer)(unsafe.Pointer(uintptr(md.data) + index*intSizeBytes))
 	for {
