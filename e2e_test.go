@@ -111,11 +111,6 @@ func TestDelete(t *testing.T) {
 	m.Del(1)
 	m.Del(2)
 
-	// traverse the map once to remove deleted nodes
-	// this is how haxmap lazily removes deleted nodes
-	// for k := m.listHead; k != nil; k = k.next() {
-	// }
-
 	if m.Len() != 0 {
 		t.Error("map should be empty.")
 	}
@@ -127,6 +122,21 @@ func TestDelete(t *testing.T) {
 	if val != nil {
 		t.Error("Missing values should return as nil.")
 	}
+}
+
+// From bug https://github.com/alphadose/haxmap/issues/11
+func TestDelete2(t *testing.T) {
+	m := New[int, string]()
+	m.Set(1, "one")
+	m.Del(1) // delegate key 1
+	if m.Len() != 0 {
+		t.Fail()
+	}
+	// Still can traverse the key/value pair ？
+	m.ForEach(func(key int, value string) bool {
+		t.Fail()
+		return true
+	})
 }
 
 func TestIterator(t *testing.T) {

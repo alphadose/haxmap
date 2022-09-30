@@ -1,6 +1,7 @@
 package haxmap
 
 import (
+	"reflect"
 	"strconv"
 	"sync/atomic"
 	"unsafe"
@@ -30,18 +31,18 @@ type (
 	}
 
 	// metadata of the hashmap
-	metadata struct {
+	metadata[K hashable, V any] struct {
 		keyshifts uintptr        //  array_size - log2(array_size)
 		count     atomicUintptr  // number of filled items
 		data      unsafe.Pointer // pointer to array of map indexes
-		size      uintptr
+		index     []*element[K, V]
 	}
 
 	// Map implements the concurrent hashmap
 	Map[K hashable, V any] struct {
 		listHead *element[K, V] // Harris lock-free list of elements in ascending order of hash
 		hasher   func(K) uintptr
-		metadata atomicPointer[metadata] // atomic.Pointer for safe access even during resizing
+		metadata atomicPointer[metadata[K, V]] // atomic.Pointer for safe access even during resizing
 		resizing atomicUint32
 		numItems atomicUintptr
 	}
@@ -65,7 +66,7 @@ func New[K hashable, V any](size ...uintptr) *Map[K, V] {
 func (m *Map[K, V]) Del(key K) {
 	var (
 		h    = m.hasher(key)
-		elem = indexElement[K, V](m.metadata.Load(), h)
+		elem = m.metadata.Load().indexElement(h)
 	)
 
 loop:
@@ -80,8 +81,11 @@ loop:
 	if elem == nil {
 		return
 	}
-	// mark node for lazily deletion
+	// mark node for deletion
 	elem.remove()
+
+	for iter := m.listHead.next(); iter != nil; iter = iter.next() {
+	}
 
 	// remove node from map index if exists
 	for {
@@ -107,13 +111,9 @@ loop:
 func (m *Map[K, V]) Get(key K) (value V, ok bool) {
 	h := m.hasher(key)
 	// inline search
-	for elem := indexElement[K, V](m.metadata.Load(), h); elem != nil; elem = elem.nextPtr.Load() {
+	for elem := m.metadata.Load().indexElement(h); elem != nil; elem = elem.nextPtr.Load() {
 		if elem.keyHash == h && elem.key == key {
-			if !elem.isDeleted() {
-				value, ok = *elem.value.Load(), true
-			} else {
-				ok = false
-			}
+			value, ok = *elem.value.Load(), true
 			return
 		}
 		if elem.keyHash <= h || elem.keyHash == marked {
@@ -131,22 +131,23 @@ func (m *Map[K, V]) Get(key K) (value V, ok bool) {
 // then the item might show up in the map only after the resize operation is finished
 func (m *Map[K, V]) Set(key K, value V) {
 	var (
-		alloc    *element[K, V]
 		h        = m.hasher(key)
+		valPtr   = &value
+		alloc    *element[K, V]
 		created  = false
 		data     = m.metadata.Load()
-		existing = indexElement[K, V](data, h)
+		existing = data.indexElement(h)
 	)
 
 	if existing == nil || existing.keyHash > h {
 		existing = m.listHead
 	}
-	if alloc, created = existing.inject(h, key, &value); created {
+	if alloc, created = existing.inject(h, key, valPtr); created {
 		m.numItems.Add(1)
 	}
 
-	count := addItemToIndex(data, alloc)
-	if resizeNeeded(data.size, count) && m.resizing.CompareAndSwap(notResizing, resizingInProgress) {
+	count := data.addItemToIndex(alloc)
+	if resizeNeeded(uintptr(len(data.index)), count) && m.resizing.CompareAndSwap(notResizing, resizingInProgress) {
 		m.grow(0) // double in size
 	}
 }
@@ -181,7 +182,7 @@ func (m *Map[K, V]) Len() uintptr {
 // Fillrate returns the fill rate of the map as an percentage integer
 func (m *Map[K, V]) Fillrate() uintptr {
 	data := m.metadata.Load()
-	return (data.count.Load() * 100) / data.size
+	return (data.count.Load() * 100) / uintptr(len(data.index))
 }
 
 // allocate map with the given size
@@ -192,14 +193,14 @@ func (m *Map[K, V]) allocate(newSize uintptr) {
 }
 
 // fillIndexItems re-indexes the map given the latest state of the linked list
-func (m *Map[K, V]) fillIndexItems(mapData *metadata) {
+func (m *Map[K, V]) fillIndexItems(mapData *metadata[K, V]) {
 	first := m.listHead
 	item := first
 	lastIndex := uintptr(0)
 	for item != nil {
 		index := item.keyHash >> mapData.keyshifts
 		if item == first || index != lastIndex {
-			addItemToIndex(mapData, item)
+			mapData.addItemToIndex(item)
 			lastIndex = index
 		}
 		item = item.next()
@@ -211,17 +212,18 @@ func (m *Map[K, V]) grow(newSize uintptr) {
 	for {
 		currentStore := m.metadata.Load()
 		if newSize == 0 {
-			newSize = currentStore.size << 1
+			newSize = uintptr(len(currentStore.index)) << 1
 		} else {
 			newSize = roundUpPower2(newSize)
 		}
 
 		index := make([]*element[K, V], newSize)
+		header := (*reflect.SliceHeader)(unsafe.Pointer(&index))
 
-		newdata := &metadata{
+		newdata := &metadata[K, V]{
 			keyshifts: strconv.IntSize - log2(newSize),
-			data:      unsafe.Pointer(&index[0]),
-			size:      newSize,
+			data:      unsafe.Pointer(header.Data),
+			index:     index,
 		}
 
 		m.fillIndexItems(newdata) // re-index with longer and more widespread keys
@@ -236,7 +238,7 @@ func (m *Map[K, V]) grow(newSize uintptr) {
 }
 
 // indexElement returns the index of a hash key, returns `nil` if absent
-func indexElement[K hashable, V any](md *metadata, hashedKey uintptr) *element[K, V] {
+func (md *metadata[K, V]) indexElement(hashedKey uintptr) *element[K, V] {
 	index := hashedKey >> md.keyshifts
 	ptr := (*unsafe.Pointer)(unsafe.Pointer(uintptr(md.data) + index*intSizeBytes))
 	item := (*element[K, V])(atomic.LoadPointer(ptr))
@@ -249,7 +251,7 @@ func indexElement[K hashable, V any](md *metadata, hashedKey uintptr) *element[K
 }
 
 // addItemToIndex adds an item to the index if needed and returns the new item counter if it changed, otherwise 0
-func addItemToIndex[K hashable, V any](md *metadata, item *element[K, V]) uintptr {
+func (md *metadata[K, V]) addItemToIndex(item *element[K, V]) uintptr {
 	index := item.keyHash >> md.keyshifts
 	ptr := (*unsafe.Pointer)(unsafe.Pointer(uintptr(md.data) + index*intSizeBytes))
 	for {
