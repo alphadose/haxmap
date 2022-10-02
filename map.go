@@ -35,7 +35,10 @@ type (
 		keyshifts uintptr        //  array_size - log2(array_size)
 		count     atomicUintptr  // number of filled items
 		data      unsafe.Pointer // pointer to array of map indexes
-		index     []*element[K, V]
+
+		// use a struct element with generic params to enable monomorphization (generic code copy-paste) for the parent metadata struct by golang compiler leading to best performance (truly hax)
+		// else in other cases the generic params will be unnecessarily passed as function parameters everytime instead of monomorphization leading to slower performance
+		index []*element[K, V]
 	}
 
 	// Map implements the concurrent hashmap
@@ -142,8 +145,16 @@ func (m *Map[K, V]) Set(key K, value V) {
 	if existing == nil || existing.keyHash > h {
 		existing = m.listHead
 	}
-	if alloc, created = existing.inject(h, key, valPtr); created {
-		m.numItems.Add(1)
+	if alloc, created = existing.inject(h, key, valPtr); alloc != nil {
+		if created {
+			m.numItems.Add(1)
+		}
+	} else {
+		for existing = m.listHead; alloc == nil; alloc, created = existing.inject(h, key, valPtr) {
+		}
+		if created {
+			m.numItems.Add(1)
+		}
 	}
 
 	count := data.addItemToIndex(alloc)
@@ -291,10 +302,8 @@ func roundUpPower2(i uintptr) uintptr {
 }
 
 // log2 computes the binary logarithm of x, rounded up to the next integer
-func log2(i uintptr) uintptr {
-	var n, p uintptr
-	for p = 1; p < i; p += p {
-		n++
+func log2(i uintptr) (n uintptr) {
+	for p := uintptr(1); p < i; p, n = p<<1, n+1 {
 	}
-	return n
+	return
 }
