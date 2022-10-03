@@ -1,3 +1,6 @@
+// from bug https://github.com/alphadose/haxmap/issues/14
+// fixed in v1.0.1 and above
+
 package main
 
 import (

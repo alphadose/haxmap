@@ -102,14 +102,12 @@ func TestDelete(t *testing.T) {
 	m.Set(1, cat)
 	m.Set(2, tiger)
 	m.Del(0)
-	m.Del(3)
+	m.Del(3, 4, 5)
 	if m.Len() != 2 {
 		t.Error("map should contain exactly two elements.")
 	}
 
-	m.Del(1)
-	m.Del(1)
-	m.Del(2)
+	m.Del(1, 2, 1)
 
 	if m.Len() != 0 {
 		t.Error("map should be empty.")

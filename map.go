@@ -2,6 +2,7 @@ package haxmap
 
 import (
 	"reflect"
+	"sort"
 	"strconv"
 	"sync/atomic"
 	"unsafe"
@@ -49,6 +50,12 @@ type (
 		resizing atomicUint32
 		numItems atomicUintptr
 	}
+
+	// used in deletion of map elements
+	deletionRequest[K hashable] struct {
+		keyHash uintptr
+		key     K
+	}
 )
 
 // New returns a new HashMap instance with an optional specific initialization size
@@ -64,48 +71,42 @@ func New[K hashable, V any](size ...uintptr) *Map[K, V] {
 	return m
 }
 
-// Del lazily deletes the key from the map
-// does nothing if key is absemt
-func (m *Map[K, V]) Del(key K) {
-	var (
-		h    = m.hasher(key)
-		elem = m.metadata.Load().indexElement(h)
-	)
-
-loop:
-	for ; elem != nil; elem = elem.next() {
-		if elem.keyHash == h && elem.key == key {
-			break loop
-		}
-		if elem.keyHash > h {
-			return
-		}
-	}
-	if elem == nil {
+// Del deletes key/keys from the map
+// Bulk deletion is more efficient than deleting keys one by one
+func (m *Map[K, V]) Del(keys ...K) {
+	if len(keys) == 0 {
 		return
 	}
-	// mark node for deletion
-	elem.remove()
-
-	for iter := m.listHead.next(); iter != nil; iter = iter.next() {
+	var (
+		size = len(keys)
+		delQ = make([]deletionRequest[K], size)
+		elem = m.listHead.next()
+		iter = 0
+	)
+	for idx := 0; idx < size; idx++ {
+		delQ[idx].keyHash, delQ[idx].key = m.hasher(keys[idx]), keys[idx]
 	}
 
-	// remove node from map index if exists
-	for {
-		data := m.metadata.Load()
-		index := elem.keyHash >> data.keyshifts
-		ptr := (*unsafe.Pointer)(unsafe.Pointer(uintptr(data.data) + index*intSizeBytes))
+	// sort in ascending order of keyhash
+	sort.Slice(delQ, func(i, j int) bool {
+		return delQ[i].keyHash < delQ[j].keyHash
+	})
 
-		next := elem.next()
-		if next != nil && elem.keyHash>>data.keyshifts != index {
-			next = nil // do not set index to next item if it's not the same slice index
+	for elem != nil && iter < size {
+		if elem.keyHash == delQ[iter].keyHash && elem.key == delQ[iter].key {
+			elem.remove() // mark node for deletion
+			m.removeItemFromIndex(elem)
+			iter++
+			elem = elem.next()
+		} else if elem.keyHash > delQ[iter].keyHash {
+			iter++
+		} else {
+			elem = elem.next()
 		}
-		atomic.CompareAndSwapPointer(ptr, unsafe.Pointer(elem), unsafe.Pointer(next))
+	}
 
-		if data == m.metadata.Load() { // check that no resize happened
-			m.numItems.Add(marked)
-			return
-		}
+	// iterate list from start to end to remove the marked nodes
+	for iter := m.listHead; iter != nil; iter = iter.next() {
 	}
 }
 
@@ -215,6 +216,26 @@ func (m *Map[K, V]) fillIndexItems(mapData *metadata[K, V]) {
 			lastIndex = index
 		}
 		item = item.next()
+	}
+}
+
+// removeItemFromIndex removes an item from the map index
+func (m *Map[K, V]) removeItemFromIndex(item *element[K, V]) {
+	for {
+		data := m.metadata.Load()
+		index := item.keyHash >> data.keyshifts
+		ptr := (*unsafe.Pointer)(unsafe.Pointer(uintptr(data.data) + index*intSizeBytes))
+
+		next := item.next()
+		if next != nil && item.keyHash>>data.keyshifts != index {
+			next = nil // do not set index to next item if it's not the same slice index
+		}
+		atomic.CompareAndSwapPointer(ptr, unsafe.Pointer(item), unsafe.Pointer(next))
+
+		if data == m.metadata.Load() { // check that no resize happened
+			m.numItems.Add(marked)
+			return
+		}
 	}
 }
 
