@@ -294,7 +294,6 @@ func (md *metadata[K, V]) addItemToIndex(item *element[K, V]) uintptr {
 			}
 			continue
 		}
-
 		if item.keyHash < elem.keyHash {
 			if !atomic.CompareAndSwapPointer(ptr, unsafe.Pointer(elem), unsafe.Pointer(item)) {
 				continue

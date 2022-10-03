@@ -45,7 +45,7 @@ func (self *element[K, V]) next() *element[K, V] {
 }
 
 // addBefore inserts an element before the specified element
-func (self *element[K, V]) addBefore(t uintptr, allocatedElement, before *element[K, V]) bool {
+func (self *element[K, V]) addBefore(allocatedElement, before *element[K, V]) bool {
 	if self.next() != before {
 		return false
 	}
@@ -55,25 +55,22 @@ func (self *element[K, V]) addBefore(t uintptr, allocatedElement, before *elemen
 
 // inject updates an existing value in the list if present or adds a new entry
 func (self *element[K, V]) inject(c uintptr, key K, value *V) (*element[K, V], bool) {
-	var alloc, left, curr, right *element[K, V]
-	for {
+	var (
+		alloc             *element[K, V]
 		left, curr, right = self.search(c, key)
-		if curr != nil {
-			curr.value.Store(value)
-			return curr, false
-		}
-		if left != nil {
-			if alloc == nil {
-				alloc = &element[K, V]{keyHash: c, key: key}
-				alloc.value.Store(value)
-			}
-			if left.addBefore(c, alloc, right) {
-				return alloc, true
-			} else {
-				return nil, false
-			}
+	)
+	if curr != nil {
+		curr.value.Store(value)
+		return curr, false
+	}
+	if left != nil {
+		alloc = &element[K, V]{keyHash: c, key: key}
+		alloc.value.Store(value)
+		if left.addBefore(alloc, right) {
+			return alloc, true
 		}
 	}
+	return nil, false
 }
 
 // search for an element in the list and return left_element, searched_element and right_element respectively
@@ -106,7 +103,7 @@ func (self *element[K, V]) search(c uintptr, key K) (*element[K, V], *element[K,
 // the node will be removed in the next iteration via `element.next()`
 func (self *element[K, V]) remove() {
 	deletionNode := &element[K, V]{keyHash: marked}
-	for !self.isDeleted() && !self.addBefore(marked, deletionNode, self.next()) {
+	for !self.isDeleted() && !self.addBefore(deletionNode, self.next()) {
 	}
 }
 

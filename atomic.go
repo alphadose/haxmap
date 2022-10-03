@@ -9,6 +9,9 @@ import (
 // warnings when types embedding noCopy are copied.
 type noCopy struct{}
 
+func (c *noCopy) Lock()   {}
+func (c *noCopy) Unlock() {}
+
 type atomicUint32 struct {
 	_ noCopy
 	v uint32
@@ -46,6 +49,3 @@ func (u *atomicUintptr) Swap(v uintptr) uintptr    { return atomic.SwapUintptr(&
 func (u *atomicUintptr) CompareAndSwap(old, new uintptr) bool {
 	return atomic.CompareAndSwapUintptr(&u.ptr, old, new)
 }
-
-func (c *noCopy) Lock()   {}
-func (c *noCopy) Unlock() {}
