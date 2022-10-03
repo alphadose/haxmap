@@ -102,9 +102,11 @@ func (self *element[K, V]) search(c uintptr, key K) (*element[K, V], *element[K,
 	}
 }
 
-// remove removes the current node
+// remove marks a node for deletion
+// the node will be removed in the next iteration via `element.next()`
 func (self *element[K, V]) remove() {
-	for !self.add(marked) {
+	deletionNode := &element[K, V]{keyHash: marked}
+	for !self.isDeleted() && !self.addBefore(marked, deletionNode, self.next()) {
 	}
 }
 
@@ -114,18 +116,4 @@ func (self *element[K, V]) isDeleted() bool {
 		return next.keyHash == marked
 	}
 	return false
-}
-
-func (self *element[K, V]) add(c uintptr) bool {
-	alloc := &element[K, V]{keyHash: c}
-	for {
-		// If we are deleted then we do not allow adding new children.
-		if self.isDeleted() {
-			return false
-		}
-		// If we succeed in adding before our perceived next, just return true.
-		if self.addBefore(c, alloc, self.next()) {
-			return true
-		}
-	}
 }
