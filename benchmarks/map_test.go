@@ -1,49 +1,49 @@
 package benchmark
 
 import (
-	"sync"
+	"hash/maphash"
 	"sync/atomic"
 	"testing"
+	"unsafe"
 
 	"github.com/alphadose/haxmap"
-	"github.com/cornelk/hashmap"
 )
 
 const (
-	epochs  uintptr = 1 << 12
-	mapSize         = 256
+	epochs  int = 1 << 12
+	mapSize     = 256
 )
 
-func setupHaxMap() *haxmap.Map[uintptr, uintptr] {
-	m := haxmap.New[uintptr, uintptr](mapSize)
-	for i := uintptr(0); i < epochs; i++ {
+func setupXXHash() *haxmap.Map[int, int] {
+	m := haxmap.New[int, int](mapSize)
+	for i := int(0); i < epochs; i++ {
 		m.Set(i, i)
 	}
 	return m
 }
 
-func setupGoSyncMap() *sync.Map {
-	m := &sync.Map{}
-	for i := uintptr(0); i < epochs; i++ {
-		m.Store(i, i)
-	}
-	return m
+var seed = maphash.MakeSeed()
+
+func maphashInt(i int) uintptr {
+	return uintptr(maphash.Bytes(seed, (*(*[8]byte)(unsafe.Pointer(&i)))[:]))
 }
 
-func setupCornelkMap(b *testing.B) *hashmap.Map[uintptr, uintptr] {
-	m := hashmap.NewSized[uintptr, uintptr](mapSize)
-	for i := uintptr(0); i < epochs; i++ {
+// https://github.com/golang/go/blob/master/src/hash/maphash/maphash.go
+func setupMapHash() *haxmap.Map[int, int] {
+	m := haxmap.New[int, int](mapSize)
+	m.SetHasher(maphashInt)
+	for i := int(0); i < epochs; i++ {
 		m.Set(i, i)
 	}
 	return m
 }
 
-func BenchmarkHaxMapReadsOnly(b *testing.B) {
-	m := setupHaxMap()
+func BenchmarkXXHashReadsOnly(b *testing.B) {
+	m := setupXXHash()
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			for i := uintptr(0); i < epochs; i++ {
+			for i := int(0); i < epochs; i++ {
 				j, _ := m.Get(i)
 				if j != i {
 					b.Fail()
@@ -53,21 +53,21 @@ func BenchmarkHaxMapReadsOnly(b *testing.B) {
 	})
 }
 
-func BenchmarkHaxMapReadsWithWrites(b *testing.B) {
-	m := setupHaxMap()
+func BenchmarkXXHashReadsWithWrites(b *testing.B) {
+	m := setupXXHash()
 	var writer uintptr
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		// use 1 thread as writer
 		if atomic.CompareAndSwapUintptr(&writer, 0, 1) {
 			for pb.Next() {
-				for i := uintptr(0); i < epochs; i++ {
+				for i := int(0); i < epochs; i++ {
 					m.Set(i, i)
 				}
 			}
 		} else {
 			for pb.Next() {
-				for i := uintptr(0); i < epochs; i++ {
+				for i := int(0); i < epochs; i++ {
 					j, _ := m.Get(i)
 					if j != i {
 						b.Fail()
@@ -78,52 +78,12 @@ func BenchmarkHaxMapReadsWithWrites(b *testing.B) {
 	})
 }
 
-func BenchmarkGoSyncMapReadsOnly(b *testing.B) {
-	m := setupGoSyncMap()
+func BenchmarkMapHashReadsOnly(b *testing.B) {
+	m := setupMapHash()
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			for i := uintptr(0); i < epochs; i++ {
-				j, _ := m.Load(i)
-				if j != i {
-					b.Fail()
-				}
-			}
-		}
-	})
-}
-
-func BenchmarkGoSyncMapReadsWithWrites(b *testing.B) {
-	m := setupGoSyncMap()
-	var writer uintptr
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		// use 1 thread as writer
-		if atomic.CompareAndSwapUintptr(&writer, 0, 1) {
-			for pb.Next() {
-				for i := uintptr(0); i < epochs; i++ {
-					m.Store(i, i)
-				}
-			}
-		} else {
-			for pb.Next() {
-				for i := uintptr(0); i < epochs; i++ {
-					j, _ := m.Load(i)
-					if j != i {
-						b.Fail()
-					}
-				}
-			}
-		}
-	})
-}
-
-func BenchmarkCornelkMapReadsOnly(b *testing.B) {
-	m := setupCornelkMap(b)
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			for i := uintptr(0); i < epochs; i++ {
+			for i := int(0); i < epochs; i++ {
 				j, _ := m.Get(i)
 				if j != i {
 					b.Fail()
@@ -133,21 +93,21 @@ func BenchmarkCornelkMapReadsOnly(b *testing.B) {
 	})
 }
 
-func BenchmarkCornelkMapReadsWithWrites(b *testing.B) {
-	m := setupCornelkMap(b)
+func BenchmarkMapHashReadsWithWrites(b *testing.B) {
+	m := setupMapHash()
 	var writer uintptr
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		// use 1 thread as writer
 		if atomic.CompareAndSwapUintptr(&writer, 0, 1) {
 			for pb.Next() {
-				for i := uintptr(0); i < epochs; i++ {
+				for i := int(0); i < epochs; i++ {
 					m.Set(i, i)
 				}
 			}
 		} else {
 			for pb.Next() {
-				for i := uintptr(0); i < epochs; i++ {
+				for i := int(0); i < epochs; i++ {
 					j, _ := m.Get(i)
 					if j != i {
 						b.Fail()
