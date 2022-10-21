@@ -137,6 +137,24 @@ func TestDelete2(t *testing.T) {
 	})
 }
 
+// from https://pkg.go.dev/sync#Map.LoadOrStore
+func TestGetOrSet(t *testing.T) {
+	var (
+		m    = New[int, string]()
+		data = "one"
+	)
+	if val, loaded := m.GetOrSet(1, data); loaded {
+		t.Error("Value should not have been present")
+	} else if val != data {
+		t.Error("Returned value should be the same as given value if absent")
+	}
+	if val, loaded := m.GetOrSet(1, data); !loaded {
+		t.Error("Value should have been present")
+	} else if val != data {
+		t.Error("Returned value should be the same as given value")
+	}
+}
+
 func TestIterator(t *testing.T) {
 	m := New[int, *Animal]()
 
