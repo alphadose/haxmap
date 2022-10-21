@@ -1,49 +1,48 @@
 package benchmark
 
 import (
-	"hash/maphash"
 	"sync/atomic"
 	"testing"
-	"unsafe"
 
 	"github.com/alphadose/haxmap"
 )
 
 const (
-	epochs  int = 1 << 12
-	mapSize     = 256
+	epochs  int64 = 1 << 12
+	mapSize       = 256
 )
 
-func setupXXHash() *haxmap.Map[int, int] {
-	m := haxmap.New[int, int](mapSize)
-	for i := int(0); i < epochs; i++ {
+func setupHaxMap() *haxmap.Map[int64, int64] {
+	m := haxmap.New[int64, int64](mapSize)
+	// m.SetHasher(phiMix2)
+	for i := int64(0); i < epochs; i++ {
 		m.Set(i, i)
 	}
 	return m
 }
 
-var seed = maphash.MakeSeed()
-
-func maphashInt(i int) uintptr {
-	return uintptr(maphash.Bytes(seed, (*(*[8]byte)(unsafe.Pointer(&i)))[:]))
-}
-
-// https://github.com/golang/go/blob/master/src/hash/maphash/maphash.go
-func setupMapHash() *haxmap.Map[int, int] {
-	m := haxmap.New[int, int](mapSize)
-	m.SetHasher(maphashInt)
-	for i := int(0); i < epochs; i++ {
-		m.Set(i, i)
+func setupIntIntMap() *Map {
+	m := New(mapSize, 0.5)
+	for i := int64(0); i < epochs; i++ {
+		m.Put(i, i)
 	}
 	return m
 }
 
-func BenchmarkXXHashReadsOnly(b *testing.B) {
-	m := setupXXHash()
+func setupDefaultMap() map[int64]int64 {
+	m := map[int64]int64{}
+	for i := int64(0); i < epochs; i++ {
+		m[i] = i
+	}
+	return m
+}
+
+func BenchmarkHaxMapReadsOnly(b *testing.B) {
+	m := setupHaxMap()
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			for i := int(0); i < epochs; i++ {
+			for i := int64(0); i < epochs; i++ {
 				j, _ := m.Get(i)
 				if j != i {
 					b.Fail()
@@ -53,21 +52,21 @@ func BenchmarkXXHashReadsOnly(b *testing.B) {
 	})
 }
 
-func BenchmarkXXHashReadsWithWrites(b *testing.B) {
-	m := setupXXHash()
+func BenchmarkHaxMapReadsWithWrites(b *testing.B) {
+	m := setupHaxMap()
 	var writer uintptr
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		// use 1 thread as writer
 		if atomic.CompareAndSwapUintptr(&writer, 0, 1) {
 			for pb.Next() {
-				for i := int(0); i < epochs; i++ {
+				for i := int64(0); i < epochs; i++ {
 					m.Set(i, i)
 				}
 			}
 		} else {
 			for pb.Next() {
-				for i := int(0); i < epochs; i++ {
+				for i := int64(0); i < epochs; i++ {
 					j, _ := m.Get(i)
 					if j != i {
 						b.Fail()
@@ -78,12 +77,12 @@ func BenchmarkXXHashReadsWithWrites(b *testing.B) {
 	})
 }
 
-func BenchmarkMapHashReadsOnly(b *testing.B) {
-	m := setupMapHash()
+func BenchmarkIntIntReadsOnly(b *testing.B) {
+	m := setupIntIntMap()
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			for i := int(0); i < epochs; i++ {
+			for i := int64(0); i < epochs; i++ {
 				j, _ := m.Get(i)
 				if j != i {
 					b.Fail()
@@ -93,21 +92,21 @@ func BenchmarkMapHashReadsOnly(b *testing.B) {
 	})
 }
 
-func BenchmarkMapHashReadsWithWrites(b *testing.B) {
-	m := setupMapHash()
+func BenchmarkIntIntReadsWithWrites(b *testing.B) {
+	m := setupIntIntMap()
 	var writer uintptr
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		// use 1 thread as writer
 		if atomic.CompareAndSwapUintptr(&writer, 0, 1) {
 			for pb.Next() {
-				for i := int(0); i < epochs; i++ {
-					m.Set(i, i)
+				for i := int64(0); i < epochs; i++ {
+					m.Put(i, i)
 				}
 			}
 		} else {
 			for pb.Next() {
-				for i := int(0); i < epochs; i++ {
+				for i := int64(0); i < epochs; i++ {
 					j, _ := m.Get(i)
 					if j != i {
 						b.Fail()
@@ -117,3 +116,43 @@ func BenchmarkMapHashReadsWithWrites(b *testing.B) {
 		}
 	})
 }
+
+func BenchmarkDefaultMapReadsOnly(b *testing.B) {
+	m := setupDefaultMap()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			for i := int64(0); i < epochs; i++ {
+				j := m[i]
+				if j != i {
+					b.Fail()
+				}
+			}
+		}
+	})
+}
+
+// func BenchmarkDefaultMapReadsWithWrites(b *testing.B) {
+// 	m := setupDefaultMap()
+// 	var writer uintptr
+// 	b.ResetTimer()
+// 	b.RunParallel(func(pb *testing.PB) {
+// 		// use 1 thread as writer
+// 		if atomic.CompareAndSwapUintptr(&writer, 0, 1) {
+// 			for pb.Next() {
+// 				for i := int64(0); i < epochs; i++ {
+// 					m[i] = i
+// 				}
+// 			}
+// 		} else {
+// 			for pb.Next() {
+// 				for i := int64(0); i < epochs; i++ {
+// 					j := m[i]
+// 					if j != i {
+// 						b.Fail()
+// 					}
+// 				}
+// 			}
+// 		}
+// 	})
+// }
