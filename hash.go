@@ -241,7 +241,7 @@ func (m *Map[K, V]) setDefaultHasher() {
 
 			return uintptr(h)
 		}
-	case int, uint, uintptr:
+	case int, uint, uintptr, unsafe.Pointer:
 		switch intSizeBytes {
 		case 2:
 			// word hasher
