@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"sync/atomic"
 	"unsafe"
+
+	"golang.org/x/exp/constraints"
 )
 
 const (
@@ -28,7 +30,7 @@ const (
 type (
 	// allowed map key types constraint
 	hashable interface {
-		int | int8 | int16 | int32 | int64 | uint | uint8 | uint16 | uint32 | uint64 | uintptr | float32 | float64 | string | complex64 | complex128
+		constraints.Integer | constraints.Float | constraints.Complex | ~string | uintptr | ~unsafe.Pointer
 	}
 
 	// metadata of the hashmap
