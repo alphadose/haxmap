@@ -28,7 +28,6 @@ const (
 )
 
 type (
-	// allowed map key types constraint
 	hashable interface {
 		constraints.Integer | constraints.Float | constraints.Complex | ~string | uintptr | ~unsafe.Pointer
 	}
