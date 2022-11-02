@@ -22,8 +22,9 @@ func TestMapCreation(t *testing.T) {
 }
 
 func TestOverwrite(t *testing.T) {
-	m := New[uint, string]()
-	key := uint(1)
+	type customUint uint
+	m := New[customUint, string]()
+	key := customUint(1)
 	cat := "cat"
 	tiger := "tiger"
 

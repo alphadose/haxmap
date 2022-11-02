@@ -185,8 +185,7 @@ var (
 
 func (m *Map[K, V]) setDefaultHasher() {
 	// default hash functions
-	t := reflect.TypeOf(*new(K)).Kind()
-	switch t {
+	switch reflect.TypeOf(*new(K)).Kind() {
 	case reflect.String:
 		// use default xxHash algorithm for key of any size for golang string data type
 		m.hasher = func(key K) uintptr {
