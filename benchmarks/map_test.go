@@ -7,6 +7,7 @@ import (
 
 	"github.com/alphadose/haxmap"
 	"github.com/cornelk/hashmap"
+	"github.com/puzpuzpuz/xsync/v2"
 )
 
 const (
@@ -30,10 +31,18 @@ func setupGoSyncMap() *sync.Map {
 	return m
 }
 
-func setupCornelkMap(b *testing.B) *hashmap.Map[uintptr, uintptr] {
+func setupCornelkMap() *hashmap.Map[uintptr, uintptr] {
 	m := hashmap.NewSized[uintptr, uintptr](mapSize)
 	for i := uintptr(0); i < epochs; i++ {
 		m.Set(i, i)
+	}
+	return m
+}
+
+func setupXsyncMap() *xsync.MapOf[uintptr, uintptr] {
+	m := xsync.NewIntegerMapOf[uintptr, uintptr]()
+	for i := uintptr(0); i < epochs; i++ {
+		m.Store(i, i)
 	}
 	return m
 }
@@ -119,7 +128,7 @@ func BenchmarkGoSyncMapReadsWithWrites(b *testing.B) {
 }
 
 func BenchmarkCornelkMapReadsOnly(b *testing.B) {
-	m := setupCornelkMap(b)
+	m := setupCornelkMap()
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
@@ -134,7 +143,7 @@ func BenchmarkCornelkMapReadsOnly(b *testing.B) {
 }
 
 func BenchmarkCornelkMapReadsWithWrites(b *testing.B) {
-	m := setupCornelkMap(b)
+	m := setupCornelkMap()
 	var writer uintptr
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
@@ -149,6 +158,46 @@ func BenchmarkCornelkMapReadsWithWrites(b *testing.B) {
 			for pb.Next() {
 				for i := uintptr(0); i < epochs; i++ {
 					j, _ := m.Get(i)
+					if j != i {
+						b.Fail()
+					}
+				}
+			}
+		}
+	})
+}
+
+func BenchmarkXsyncMapReadsOnly(b *testing.B) {
+	m := setupXsyncMap()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			for i := uintptr(0); i < epochs; i++ {
+				j, _ := m.Load(i)
+				if j != i {
+					b.Fail()
+				}
+			}
+		}
+	})
+}
+
+func BenchmarkXsyncMapReadsWithWrites(b *testing.B) {
+	m := setupXsyncMap()
+	var writer uintptr
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		// use 1 thread as writer
+		if atomic.CompareAndSwapUintptr(&writer, 0, 1) {
+			for pb.Next() {
+				for i := uintptr(0); i < epochs; i++ {
+					m.Store(i, i)
+				}
+			}
+		} else {
+			for pb.Next() {
+				for i := uintptr(0); i < epochs; i++ {
+					j, _ := m.Load(i)
 					if j != i {
 						b.Fail()
 					}
