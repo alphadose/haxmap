@@ -1,15 +1,16 @@
 package haxmap
 
-// mark a node for being deleted, also used as list_head
-// the search() function skips nodes with `keyHash = marked`
-const marked = ^uintptr(0)
+import "sync/atomic"
+
+// marks if a node is deleted or not
+const deleted uint32 = 1
 
 // Below implementation is a lock-free linked list based on https://www.cl.cam.ac.uk/research/srg/netos/papers/2001-caslists.pdf by Timothy L. Harris
 // Performance improvements suggested in https://arxiv.org/pdf/2010.15755.pdf were also added
 
 // newListHead returns the new head of any list
 func newListHead[K hashable, V any]() *element[K, V] {
-	e := &element[K, V]{keyHash: marked, key: *new(K)}
+	e := &element[K, V]{keyHash: 0, key: *new(K)}
 	e.nextPtr.Store(nil)
 	e.value.Store(new(V))
 	return e
@@ -22,20 +23,17 @@ type element[K hashable, V any] struct {
 	// The next element in the list. If this pointer has the marked flag set it means THIS element, not the next one, is deleted.
 	nextPtr atomicPointer[element[K, V]]
 	value   atomicPointer[V]
+	deleted uint32
 }
 
 // next returns the next element
 // this also deletes all marked elements while traversing the list
 func (self *element[K, V]) next() *element[K, V] {
 	for nextElement := self.nextPtr.Load(); nextElement != nil; {
-		// if our next element contains marked that means WE are deleted, and we can just return the next-next element
-		if nextElement.keyHash == marked {
-			return nextElement.next()
-		}
 		// if our next element is itself deleted (by the same criteria) then we will just replace
 		// it with its next() (which should be the first node behind it that isn't itself deleted) and then check again
 		if nextElement.isDeleted() {
-			self.nextPtr.CompareAndSwap(nextElement, nextElement.next())
+			self.nextPtr.CompareAndSwap(nextElement, nextElement.next()) // actual deletion happens here after nodes are marked deleted lazily
 			nextElement = self.nextPtr.Load()
 		} else {
 			return nextElement
@@ -84,14 +82,12 @@ func (self *element[K, V]) search(c uintptr, key K) (*element[K, V], *element[K,
 			return left, curr, right
 		}
 		right = curr.next()
-		if curr.keyHash != marked {
-			if c < curr.keyHash {
-				right = curr
-				curr = nil
-				return left, curr, right
-			} else if c == curr.keyHash && key == curr.key {
-				return left, curr, right
-			}
+		if c < curr.keyHash {
+			right = curr
+			curr = nil
+			return left, curr, right
+		} else if c == curr.keyHash && key == curr.key {
+			return left, curr, right
 		}
 		left = curr
 		curr = left.next()
@@ -102,15 +98,10 @@ func (self *element[K, V]) search(c uintptr, key K) (*element[K, V], *element[K,
 // remove marks a node for deletion
 // the node will be removed in the next iteration via `element.next()`
 func (self *element[K, V]) remove() {
-	deletionNode := &element[K, V]{keyHash: marked}
-	for !self.isDeleted() && !self.addBefore(deletionNode, self.next()) {
-	}
+	atomic.StoreUint32(&self.deleted, deleted)
 }
 
 // if current element is deleted
 func (self *element[K, V]) isDeleted() bool {
-	if next := self.nextPtr.Load(); next != nil {
-		return next.keyHash == marked
-	}
-	return false
+	return atomic.LoadUint32(&self.deleted) == deleted
 }

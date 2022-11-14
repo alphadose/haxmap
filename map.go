@@ -12,7 +12,7 @@ import (
 
 const (
 	// defaultSize is the default size for a zero allocated map
-	defaultSize = 256
+	defaultSize = 8
 
 	// maxFillRate is the maximum fill rate for the slice before a resize will happen
 	maxFillRate = 50
@@ -75,39 +75,61 @@ func New[K hashable, V any](size ...uintptr) *Map[K, V] {
 // Del deletes key/keys from the map
 // Bulk deletion is more efficient than deleting keys one by one
 func (m *Map[K, V]) Del(keys ...K) {
-	if len(keys) == 0 {
+	size := len(keys)
+	switch {
+	case size == 0:
 		return
-	}
-	var (
-		size = len(keys)
-		delQ = make([]deletionRequest[K], size)
-		elem = m.listHead.next()
-		iter = 0
-	)
-	for idx := 0; idx < size; idx++ {
-		delQ[idx].keyHash, delQ[idx].key = m.hasher(keys[idx]), keys[idx]
-	}
-
-	// sort in ascending order of keyhash
-	sort.Slice(delQ, func(i, j int) bool {
-		return delQ[i].keyHash < delQ[j].keyHash
-	})
-
-	for elem != nil && iter < size {
-		if elem.keyHash == delQ[iter].keyHash && elem.key == delQ[iter].key {
-			elem.remove() // mark node for deletion
-			m.removeItemFromIndex(elem)
-			iter++
-			elem = elem.next()
-		} else if elem.keyHash > delQ[iter].keyHash {
-			iter++
-		} else {
-			elem = elem.next()
+	case size == 1: // delete one
+		var (
+			h        = m.hasher(keys[0])
+			existing = m.metadata.Load().indexElement(h)
+		)
+		if existing == nil || existing.keyHash > h {
+			existing = m.listHead.next()
 		}
-	}
+		for ; existing != nil && existing.keyHash <= h; existing = existing.next() {
+			if existing.key == keys[0] {
+				if !existing.isDeleted() {
+					existing.remove()               // mark node for lazy removal on next pass
+					m.removeItemFromIndex(existing) // remove node from map index
+				}
+				return
+			}
+		}
+	default: // delete multiple entries
+		var (
+			delQ = make([]deletionRequest[K], size)
+			iter = 0
+		)
+		for idx := 0; idx < size; idx++ {
+			delQ[idx].keyHash, delQ[idx].key = m.hasher(keys[idx]), keys[idx]
+		}
 
-	// iterate list from start to end to remove the marked nodes
-	for iter := m.listHead; iter != nil; iter = iter.next() {
+		// sort in ascending order of keyhash
+		sort.Slice(delQ, func(i, j int) bool {
+			return delQ[i].keyHash < delQ[j].keyHash
+		})
+
+		elem := m.metadata.Load().indexElement(delQ[0].keyHash)
+
+		if elem == nil || elem.keyHash > delQ[0].keyHash {
+			elem = m.listHead.next()
+		}
+
+		for elem != nil && iter < size {
+			if elem.keyHash == delQ[iter].keyHash && elem.key == delQ[iter].key {
+				if !elem.isDeleted() {
+					elem.remove()               // mark node for lazy removal on next pass
+					m.removeItemFromIndex(elem) // remove node from map index
+				}
+				iter++
+				elem = elem.next()
+			} else if elem.keyHash > delQ[iter].keyHash {
+				iter++
+			} else {
+				elem = elem.next()
+			}
+		}
 	}
 }
 
@@ -116,15 +138,10 @@ func (m *Map[K, V]) Del(keys ...K) {
 func (m *Map[K, V]) Get(key K) (value V, ok bool) {
 	h := m.hasher(key)
 	// inline search
-	for elem := m.metadata.Load().indexElement(h); elem != nil; elem = elem.nextPtr.Load() {
-		if elem.keyHash == h && elem.key == key {
-			value, ok = *elem.value.Load(), true
+	for elem := m.metadata.Load().indexElement(h); elem != nil && elem.keyHash <= h; elem = elem.nextPtr.Load() {
+		if elem.key == key {
+			value, ok = *elem.value.Load(), !elem.isDeleted()
 			return
-		}
-		if elem.keyHash <= h || elem.keyHash == marked {
-			continue
-		} else {
-			break
 		}
 	}
 	ok = false
@@ -175,15 +192,10 @@ func (m *Map[K, V]) GetOrSet(key K, value V) (actual V, loaded bool) {
 		existing = data.indexElement(h)
 	)
 	// try to get the element if present
-	for elem := existing; elem != nil; elem = elem.nextPtr.Load() {
-		if elem.keyHash == h && elem.key == key {
+	for elem := existing; elem != nil && elem.keyHash <= h; elem = elem.nextPtr.Load() {
+		if elem.key == key && !elem.isDeleted() {
 			actual, loaded = *elem.value.Load(), true
 			return
-		}
-		if elem.keyHash <= h || elem.keyHash == marked {
-			continue
-		} else {
-			break
 		}
 	}
 	// Get() failed because element is absent
@@ -259,9 +271,11 @@ func (m *Map[K, V]) allocate(newSize uintptr) {
 
 // fillIndexItems re-indexes the map given the latest state of the linked list
 func (m *Map[K, V]) fillIndexItems(mapData *metadata[K, V]) {
-	first := m.listHead
-	item := first
-	lastIndex := uintptr(0)
+	var (
+		first     = m.listHead.next()
+		item      = first
+		lastIndex = uintptr(0)
+	)
 	for item != nil {
 		index := item.keyHash >> mapData.keyshifts
 		if item == first || index != lastIndex {
@@ -286,7 +300,7 @@ func (m *Map[K, V]) removeItemFromIndex(item *element[K, V]) {
 		atomic.CompareAndSwapPointer(ptr, unsafe.Pointer(item), unsafe.Pointer(next))
 
 		if data == m.metadata.Load() { // check that no resize happened
-			m.numItems.Add(marked)
+			m.numItems.Add(^uintptr(0)) // decrement counter
 			return
 		}
 	}

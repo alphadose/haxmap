@@ -11,7 +11,7 @@ import (
 
 const (
 	epochs  uintptr = 1 << 12
-	mapSize         = 256
+	mapSize         = 8
 )
 
 func setupHaxMap() *haxmap.Map[uintptr, uintptr] {

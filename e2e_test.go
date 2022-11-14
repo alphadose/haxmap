@@ -97,9 +97,9 @@ func TestGrow(t *testing.T) {
 
 func TestDelete(t *testing.T) {
 	m := New[int, *Animal]()
-
 	cat := &Animal{"cat"}
 	tiger := &Animal{"tiger"}
+
 	m.Set(1, cat)
 	m.Set(2, tiger)
 	m.Del(0)
@@ -107,19 +107,15 @@ func TestDelete(t *testing.T) {
 	if m.Len() != 2 {
 		t.Error("map should contain exactly two elements.")
 	}
-
 	m.Del(1, 2, 1)
 
 	if m.Len() != 0 {
 		t.Error("map should be empty.")
 	}
 
-	val, ok := m.Get(1) // Get a missing element.
+	_, ok := m.Get(1) // Get a missing element.
 	if ok {
 		t.Error("ok should be false when item is missing from map.")
-	}
-	if val != nil {
-		t.Error("Missing values should return as nil.")
 	}
 }
 
