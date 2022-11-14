@@ -2,8 +2,11 @@ package haxmap
 
 import "sync/atomic"
 
-// marks if a node is deleted or not
-const deleted uint32 = 1
+// states denoting whether a node is deleted or not
+const (
+	notDeleted uint32 = iota
+	deleted
+)
 
 // Below implementation is a lock-free linked list based on https://www.cl.cam.ac.uk/research/srg/netos/papers/2001-caslists.pdf by Timothy L. Harris
 // Performance improvements suggested in https://arxiv.org/pdf/2010.15755.pdf were also added
@@ -97,8 +100,9 @@ func (self *element[K, V]) search(c uintptr, key K) (*element[K, V], *element[K,
 
 // remove marks a node for deletion
 // the node will be removed in the next iteration via `element.next()`
-func (self *element[K, V]) remove() {
-	atomic.StoreUint32(&self.deleted, deleted)
+// CAS ensures each node can be marked for deletion exactly once
+func (self *element[K, V]) remove() bool {
+	return atomic.CompareAndSwapUint32(&self.deleted, notDeleted, deleted)
 }
 
 // if current element is deleted

@@ -89,8 +89,7 @@ func (m *Map[K, V]) Del(keys ...K) {
 		}
 		for ; existing != nil && existing.keyHash <= h; existing = existing.next() {
 			if existing.key == keys[0] {
-				if !existing.isDeleted() {
-					existing.remove()               // mark node for lazy removal on next pass
+				if existing.remove() { // mark node for lazy removal on next pass
 					m.removeItemFromIndex(existing) // remove node from map index
 				}
 				return
@@ -118,8 +117,7 @@ func (m *Map[K, V]) Del(keys ...K) {
 
 		for elem != nil && iter < size {
 			if elem.keyHash == delQ[iter].keyHash && elem.key == delQ[iter].key {
-				if !elem.isDeleted() {
-					elem.remove()               // mark node for lazy removal on next pass
+				if elem.remove() { // mark node for lazy removal on next pass
 					m.removeItemFromIndex(elem) // remove node from map index
 				}
 				iter++
