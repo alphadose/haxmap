@@ -308,3 +308,47 @@ func TestInfiniteLoop(t *testing.T) {
 		}
 	})
 }
+
+// https://github.com/alphadose/haxmap/issues/18
+// test compare and swap
+func TestCAS(t *testing.T) {
+	type custom struct {
+		val int
+	}
+	m := New[string, custom]()
+	m.Set("1", custom{val: 1})
+	if m.CompareAndSwap("1", custom{val: 420}, custom{val: 2}) {
+		t.Error("Invalid Compare and Swap")
+	}
+	if !m.CompareAndSwap("1", custom{val: 1}, custom{val: 2}) {
+		t.Error("Compare and Swap Failed")
+	}
+	val, ok := m.Get("1")
+	if !ok {
+		t.Error("Key doesnt exists")
+	}
+	if val.val != 2 {
+		t.Error("Invalid Compare and Swap value returned")
+	}
+}
+
+// https://github.com/alphadose/haxmap/issues/18
+// test swap
+func TestSwap(t *testing.T) {
+	m := New[string, int]()
+	m.Set("1", 1)
+	val, swapped := m.Swap("1", 2)
+	if !swapped {
+		t.Error("Swap failed")
+	}
+	if val != 1 {
+		t.Error("Old value not returned in swal")
+	}
+	val, ok := m.Get("1")
+	if !ok {
+		t.Error("Key doesnt exists")
+	}
+	if val != 2 {
+		t.Error("New value not set")
+	}
+}

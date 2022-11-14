@@ -229,6 +229,43 @@ func (m *Map[K, V]) GetOrSet(key K, value V) (actual V, loaded bool) {
 	return
 }
 
+// CompareAndSwap atomically updates a map entry given its key by comparing current value to `oldValue`
+// and setting it to `newValue` if the above comparison is successful
+// It returns a boolean indicating whether the CompareAndSwap was successful or not
+func (m *Map[K, V]) CompareAndSwap(key K, oldValue, newValue V) bool {
+	var (
+		h        = m.hasher(key)
+		existing = m.metadata.Load().indexElement(h)
+	)
+	if existing == nil || existing.keyHash > h {
+		existing = m.listHead
+	}
+	if _, current, _ := existing.search(h, key); current != nil {
+		if oldPtr := current.value.Load(); reflect.DeepEqual(*oldPtr, oldValue) {
+			return current.value.CompareAndSwap(oldPtr, &newValue)
+		}
+	}
+	return false
+}
+
+// Swap atomically swaps the value of a map entry given its key
+// It returns the old value if swap was successful and a boolean `swapped` indicating whether the swap was successful or not
+func (m *Map[K, V]) Swap(key K, newValue V) (oldValue V, swapped bool) {
+	var (
+		h        = m.hasher(key)
+		existing = m.metadata.Load().indexElement(h)
+	)
+	if existing == nil || existing.keyHash > h {
+		existing = m.listHead
+	}
+	if _, current, _ := existing.search(h, key); current != nil {
+		oldValue, swapped = *current.value.Swap(&newValue), true
+	} else {
+		swapped = false
+	}
+	return
+}
+
 // ForEach iterates over key-value pairs and executes the lambda provided for each such pair
 // lambda must return `true` to continue iteration and `false` to break iteration
 func (m *Map[K, V]) ForEach(lambda func(K, V) bool) {
