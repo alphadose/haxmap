@@ -227,6 +227,53 @@ func (m *Map[K, V]) GetOrSet(key K, value V) (actual V, loaded bool) {
 	return
 }
 
+// GetOrCompute is similar to GetOrSet but the value to be set is obtained from a constructor
+// the value constructor is called only once
+func (m *Map[K, V]) GetOrCompute(key K, valueFn func() V) (actual V, loaded bool) {
+	var (
+		h        = m.hasher(key)
+		data     = m.metadata.Load()
+		existing = data.indexElement(h)
+	)
+	// try to get the element if present
+	for elem := existing; elem != nil && elem.keyHash <= h; elem = elem.nextPtr.Load() {
+		if elem.key == key && !elem.isDeleted() {
+			actual, loaded = *elem.value.Load(), true
+			return
+		}
+	}
+	// Get() failed because element is absent
+	// compute the value from the constructor and store it
+	value := valueFn()
+	actual, loaded = value, false
+
+	var (
+		alloc   *element[K, V]
+		created = false
+		valPtr  = &value
+	)
+	if existing == nil || existing.keyHash > h {
+		existing = m.listHead
+	}
+	if alloc, created = existing.inject(h, key, valPtr); alloc != nil {
+		if created {
+			m.numItems.Add(1)
+		}
+	} else {
+		for existing = m.listHead; alloc == nil; alloc, created = existing.inject(h, key, valPtr) {
+		}
+		if created {
+			m.numItems.Add(1)
+		}
+	}
+
+	count := data.addItemToIndex(alloc)
+	if resizeNeeded(uintptr(len(data.index)), count) && m.resizing.CompareAndSwap(notResizing, resizingInProgress) {
+		m.grow(0) // double in size
+	}
+	return
+}
+
 // CompareAndSwap atomically updates a map entry given its key by comparing current value to `oldValue`
 // and setting it to `newValue` if the above comparison is successful
 // It returns a boolean indicating whether the CompareAndSwap was successful or not
