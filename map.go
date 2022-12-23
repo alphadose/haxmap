@@ -1,6 +1,7 @@
 package haxmap
 
 import (
+	"encoding/json"
 	"reflect"
 	"sort"
 	"strconv"
@@ -342,6 +343,28 @@ func (m *Map[K, V]) Len() uintptr {
 func (m *Map[K, V]) Fillrate() uintptr {
 	data := m.metadata.Load()
 	return (data.count.Load() * 100) / uintptr(len(data.index))
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+func (m *Map[K, V]) MarshalJSON() ([]byte, error) {
+	gomap := make(map[K]V)
+	for i := m.listHead.next(); i != nil; i = i.next() {
+		gomap[i.key] = *i.value.Load()
+	}
+	return json.Marshal(gomap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface.
+func (m *Map[K, V]) UnmarshalJSON(i []byte) error {
+	gomap := make(map[K]V)
+	err := json.Unmarshal(i, &gomap)
+	if err != nil {
+		return err
+	}
+	for k, v := range gomap {
+		m.Set(k, v)
+	}
+	return nil
 }
 
 // allocate map with the given size
