@@ -275,6 +275,27 @@ func (m *Map[K, V]) GetOrCompute(key K, valueFn func() V) (actual V, loaded bool
 	return
 }
 
+// GetAndDel deletes the key from the map, returning the previous value if any.
+func (m *Map[K, V]) GetAndDel(key K) (value V, ok bool) {
+	var (
+		h        = m.hasher(key)
+		existing = m.metadata.Load().indexElement(h)
+	)
+	if existing == nil || existing.keyHash > h {
+		existing = m.listHead.next()
+	}
+	for ; existing != nil && existing.keyHash <= h; existing = existing.next() {
+		if existing.key == key {
+			value, ok = *existing.value.Load(), !existing.isDeleted()
+			if existing.remove() {
+				m.removeItemFromIndex(existing)
+			}
+			return
+		}
+	}
+	return
+}
+
 // CompareAndSwap atomically updates a map entry given its key by comparing current value to `oldValue`
 // and setting it to `newValue` if the above comparison is successful
 // It returns a boolean indicating whether the CompareAndSwap was successful or not
