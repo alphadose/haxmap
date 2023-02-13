@@ -467,7 +467,7 @@ func (md *metadata[K, V]) indexElement(hashedKey uintptr) *element[K, V] {
 	index := hashedKey >> md.keyshifts
 	ptr := (*unsafe.Pointer)(unsafe.Pointer(uintptr(md.data) + index*intSizeBytes))
 	item := (*element[K, V])(atomic.LoadPointer(ptr))
-	for (item == nil || hashedKey < item.keyHash) && index > 0 {
+	for (item == nil || hashedKey < item.keyHash || item.isDeleted()) && index > 0 {
 		index--
 		ptr = (*unsafe.Pointer)(unsafe.Pointer(uintptr(md.data) + index*intSizeBytes))
 		item = (*element[K, V])(atomic.LoadPointer(ptr))

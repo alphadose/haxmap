@@ -57,6 +57,29 @@ func TestSet(t *testing.T) {
 	}
 }
 
+// From bug https://github.com/alphadose/haxmap/issues/33
+func TestSet2(t *testing.T) {
+	h := New[int, string]()
+	for i := 1; i <= 10; i++ {
+		h.Set(i, strconv.Itoa(i))
+	}
+	for i := 1; i <= 10; i++ {
+		h.Del(i)
+	}
+	for i := 1; i <= 10; i++ {
+		h.Set(i, strconv.Itoa(i))
+	}
+	for i := 1; i <= 10; i++ {
+		id, ok := h.Get(i)
+		if !ok {
+			t.Error("ok should be true for item stored within the map.")
+		}
+		if id != strconv.Itoa(i) {
+			t.Error("item is not as expected.")
+		}
+	}
+}
+
 func TestGet(t *testing.T) {
 	m := New[string, string]()
 	cat := "cat"
