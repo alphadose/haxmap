@@ -427,6 +427,9 @@ func (m *Map[K, V]) removeItemFromIndex(item *element[K, V]) {
 
 		if data == m.metadata.Load() { // check that no resize happened
 			m.numItems.Add(^uintptr(0)) // decrement counter
+			if next == nil {
+				data.count.Add(^uintptr(0))
+			}
 			return
 		}
 	}
