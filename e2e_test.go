@@ -95,6 +95,18 @@ func TestGrow(t *testing.T) {
 	}
 }
 
+func TestGrow2(t *testing.T) {
+	size := 64
+	m := New[int, any](uintptr(size))
+	for i := 0; i < 10000; i++ {
+		m.Set(i, nil)
+		m.Del(i)
+		if n := len(m.metadata.Load().index); n != size {
+			t.Fatalf("map should not be resized, new size: %d", n)
+		}
+	}
+}
+
 func TestDelete(t *testing.T) {
 	m := New[int, *Animal]()
 	cat := &Animal{"cat"}
