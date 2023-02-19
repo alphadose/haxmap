@@ -130,6 +130,19 @@ func TestGrow2(t *testing.T) {
 	}
 }
 
+func TestFillrate(t *testing.T) {
+	m := New[int, any]()
+	for i := 0; i < 1000; i++ {
+		m.Set(i, nil)
+	}
+	for i := 0; i < 1000; i++ {
+		m.Del(i)
+	}
+	if fr := m.Fillrate(); fr != 0 {
+		t.Errorf("Fillrate should be zero when the map is empty, fillrate: %v", fr)
+	}
+}
+
 func TestDelete(t *testing.T) {
 	m := New[int, *Animal]()
 	cat := &Animal{"cat"}
