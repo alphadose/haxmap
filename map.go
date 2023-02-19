@@ -420,14 +420,14 @@ func (m *Map[K, V]) removeItemFromIndex(item *element[K, V]) {
 		ptr := (*unsafe.Pointer)(unsafe.Pointer(uintptr(data.data) + index*intSizeBytes))
 
 		next := item.next()
-		if next != nil && item.keyHash>>data.keyshifts != index {
+		if next != nil && next.keyHash>>data.keyshifts != index {
 			next = nil // do not set index to next item if it's not the same slice index
 		}
-		atomic.CompareAndSwapPointer(ptr, unsafe.Pointer(item), unsafe.Pointer(next))
+		swappedToNil := atomic.CompareAndSwapPointer(ptr, unsafe.Pointer(item), unsafe.Pointer(next)) && next == nil
 
 		if data == m.metadata.Load() { // check that no resize happened
 			m.numItems.Add(^uintptr(0)) // decrement counter
-			if next == nil {
+			if swappedToNil {           // decrement the metadata count if the index is set to nil
 				data.count.Add(^uintptr(0))
 			}
 			return
