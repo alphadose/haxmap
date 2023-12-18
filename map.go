@@ -64,7 +64,7 @@ type (
 func New[K hashable, V any](size ...uintptr) *Map[K, V] {
 	m := &Map[K, V]{listHead: newListHead[K, V]()}
 	m.numItems.Store(0)
-	if len(size) > 0 {
+	if len(size) > 0 && size[0] > 0 {
 		m.allocate(size[0])
 	} else {
 		m.allocate(defaultSize)
