@@ -19,6 +19,14 @@ func TestMapCreation(t *testing.T) {
 	if m.Len() != 0 {
 		t.Errorf("new map should be empty but has %d items.", m.Len())
 	}
+
+	t.Run("default size is used when zero is provided", func(t *testing.T) {
+		m := New[int, int](0)
+		index := m.metadata.Load().index
+		if len(index) != defaultSize {
+			t.Error("map index size is not as expected")
+		}
+	})
 }
 
 func TestOverwrite(t *testing.T) {
