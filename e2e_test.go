@@ -235,6 +235,31 @@ func TestIterator(t *testing.T) {
 	}
 }
 
+func TestClear(t *testing.T) {
+	m := New[int, any]()
+	for i := 0; i < 100; i++ {
+		m.Set(i, nil)
+	}
+	m.Clear()
+	if m.Len() != 0 {
+		t.Error("map size should be zero after clear")
+	}
+	if m.Fillrate() != 0 {
+		t.Error("fillrate should be zero after clear")
+	}
+	log := int(math.Log2(defaultSize))
+	expectedSize := uintptr(strconv.IntSize - log)
+	if m.metadata.Load().keyshifts != expectedSize {
+		t.Error("keyshift is not as expected after clear")
+	}
+	for i := 0; i < 100; i++ {
+		_, ok := m.Get(i)
+		if ok {
+			t.Error("the entries should not be existing in the map after clear")
+		}
+	}
+}
+
 func TestMapParallel(t *testing.T) {
 	max := 10
 	dur := 2 * time.Second
