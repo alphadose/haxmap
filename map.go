@@ -46,11 +46,12 @@ type (
 
 	// Map implements the concurrent hashmap
 	Map[K hashable, V any] struct {
-		listHead *element[K, V] // Harris lock-free list of elements in ascending order of hash
-		hasher   func(K) uintptr
-		metadata atomicPointer[metadata[K, V]] // atomic.Pointer for safe access even during resizing
-		resizing atomicUint32
-		numItems atomicUintptr
+		listHead    *element[K, V] // Harris lock-free list of elements in ascending order of hash
+		hasher      func(K) uintptr
+		metadata    atomicPointer[metadata[K, V]] // atomic.Pointer for safe access even during resizing
+		resizing    atomicUint32
+		numItems    atomicUintptr
+		defaultSize uintptr
 	}
 
 	// used in deletion of map elements
@@ -64,11 +65,11 @@ type (
 func New[K hashable, V any](size ...uintptr) *Map[K, V] {
 	m := &Map[K, V]{listHead: newListHead[K, V]()}
 	m.numItems.Store(0)
-	if len(size) > 0 && size[0] != 0 {
-		m.allocate(size[0])
-	} else {
-		m.allocate(defaultSize)
+	m.defaultSize = defaultSize
+	if len(size) > 0 && size[0] > 0 {
+		m.defaultSize = size[0]
 	}
+	m.allocate(m.defaultSize)
 	m.setDefaultHasher()
 	return m
 }
@@ -348,6 +349,23 @@ func (m *Map[K, V]) Grow(newSize uintptr) {
 	if m.resizing.CompareAndSwap(notResizing, resizingInProgress) {
 		m.grow(newSize)
 	}
+}
+
+// Clear the map by removing all entries in the map.
+// This operation resets the underlying metadata to its initial state.
+func (m *Map[K, V]) Clear() {
+	index := make([]*element[K, V], defaultSize)
+	header := (*reflect.SliceHeader)(unsafe.Pointer(&index))
+
+	newdata := &metadata[K, V]{
+		keyshifts: strconv.IntSize - log2(m.defaultSize),
+		data:      unsafe.Pointer(header.Data),
+		index:     index,
+	}
+
+	m.listHead.nextPtr.Store(nil)
+	m.metadata.Store(newdata)
+	m.numItems.Store(0)
 }
 
 // SetHasher sets the hash function to the one provided by the user
