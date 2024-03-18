@@ -356,13 +356,11 @@ func (m *Map[K, V]) Grow(newSize uintptr) {
 func (m *Map[K, V]) Clear() {
 	index := make([]*element[K, V], m.defaultSize)
 	header := (*reflect.SliceHeader)(unsafe.Pointer(&index))
-
 	newdata := &metadata[K, V]{
 		keyshifts: strconv.IntSize - log2(m.defaultSize),
 		data:      unsafe.Pointer(header.Data),
 		index:     index,
 	}
-
 	m.listHead.nextPtr.Store(nil)
 	m.metadata.Store(newdata)
 	m.numItems.Store(0)
