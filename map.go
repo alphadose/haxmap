@@ -354,7 +354,7 @@ func (m *Map[K, V]) Grow(newSize uintptr) {
 // Clear the map by removing all entries in the map.
 // This operation resets the underlying metadata to its initial state.
 func (m *Map[K, V]) Clear() {
-	index := make([]*element[K, V], defaultSize)
+	index := make([]*element[K, V], m.defaultSize)
 	header := (*reflect.SliceHeader)(unsafe.Pointer(&index))
 
 	newdata := &metadata[K, V]{

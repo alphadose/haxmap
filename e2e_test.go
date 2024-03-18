@@ -253,8 +253,7 @@ func TestClear(t *testing.T) {
 		t.Error("keyshift is not as expected after clear")
 	}
 	for i := 0; i < 100; i++ {
-		_, ok := m.Get(i)
-		if ok {
+		if _, ok := m.Get(i); ok {
 			t.Error("the entries should not be existing in the map after clear")
 		}
 	}
