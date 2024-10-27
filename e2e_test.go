@@ -208,7 +208,7 @@ func TestGetOrSet(t *testing.T) {
 	}
 }
 
-func TestIterator(t *testing.T) {
+func TestForEach(t *testing.T) {
 	m := New[int, *Animal]()
 
 	m.ForEach(func(i int, a *Animal) bool {
