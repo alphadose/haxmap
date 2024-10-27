@@ -1,5 +1,6 @@
 # HaxMap
 
+[![GoDoc](https://godoc.org/github.com/alphadose/haxmap/svc?status.svg)](https://pkg.go.dev/github.com/alphadose/haxmap)
 [![Main Actions Status](https://github.com/alphadose/haxmap/workflows/Go/badge.svg)](https://github.com/alphadose/haxmap/actions)
 [![Go Report Card](https://goreportcard.com/badge/github.com/alphadose/haxmap)](https://goreportcard.com/report/github.com/alphadose/haxmap)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE.md)
