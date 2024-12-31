@@ -3,12 +3,12 @@ package haxmap
 import (
 	"encoding/json"
 	"reflect"
-	"sort"
 	"strconv"
 	"sync/atomic"
 	"unsafe"
 
 	"golang.org/x/exp/constraints"
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -19,7 +19,7 @@ const (
 	maxFillRate = 50
 
 	// intSizeBytes is the size in byte of an int or uint value
-	intSizeBytes = strconv.IntSize >> 3
+	intSizeBytes = 32 << (^uint(0) >> 63) >> 3
 )
 
 // indicates resizing operation status enums
@@ -35,23 +35,23 @@ type (
 
 	// metadata of the hashmap
 	metadata[K hashable, V any] struct {
+		index     []*element[K, V]
 		keyshifts uintptr        //  array_size - log2(array_size)
 		count     atomicUintptr  // number of filled items
 		data      unsafe.Pointer // pointer to array of map indexes
 
 		// use a struct element with generic params to enable monomorphization (generic code copy-paste) for the parent metadata struct by golang compiler leading to best performance (truly hax)
 		// else in other cases the generic params will be unnecessarily passed as function parameters everytime instead of monomorphization leading to slower performance
-		index []*element[K, V]
 	}
 
 	// Map implements the concurrent hashmap
 	Map[K hashable, V any] struct {
-		listHead    *element[K, V] // Harris lock-free list of elements in ascending order of hash
 		hasher      func(K) uintptr
+		listHead    *element[K, V]                // Harris lock-free list of elements in ascending order of hash
 		metadata    atomicPointer[metadata[K, V]] // atomic.Pointer for safe access even during resizing
-		resizing    atomicUint32
 		numItems    atomicUintptr
 		defaultSize uintptr
+		resizing    atomicUint32
 	}
 
 	// used in deletion of map elements
@@ -107,8 +107,8 @@ func (m *Map[K, V]) Del(keys ...K) {
 		}
 
 		// sort in ascending order of keyhash
-		sort.Slice(delQ, func(i, j int) bool {
-			return delQ[i].keyHash < delQ[j].keyHash
+		slices.SortFunc[deletionRequest[K]](delQ, func(i, j deletionRequest[K]) bool {
+			return i.keyHash < j.keyHash
 		})
 
 		elem := m.metadata.Load().indexElement(delQ[0].keyHash)
@@ -355,10 +355,10 @@ func (m *Map[K, V]) Grow(newSize uintptr) {
 // This operation resets the underlying metadata to its initial state.
 func (m *Map[K, V]) Clear() {
 	index := make([]*element[K, V], m.defaultSize)
-	header := (*reflect.SliceHeader)(unsafe.Pointer(&index))
+	// header := (*reflect.SliceHeader)(unsafe.Pointer(&index))
 	newdata := &metadata[K, V]{
 		keyshifts: strconv.IntSize - log2(m.defaultSize),
-		data:      unsafe.Pointer(header.Data),
+		data:      unsafe.Pointer(&index[0]),
 		index:     index,
 	}
 	m.listHead.nextPtr.Store(nil)
@@ -462,11 +462,11 @@ func (m *Map[K, V]) grow(newSize uintptr) {
 		}
 
 		index := make([]*element[K, V], newSize)
-		header := (*reflect.SliceHeader)(unsafe.Pointer(&index))
+		// header := (*reflect.SliceHeader)(unsafe.Pointer(&index))
 
 		newdata := &metadata[K, V]{
 			keyshifts: strconv.IntSize - log2(newSize),
-			data:      unsafe.Pointer(header.Data),
+			data:      unsafe.Pointer(&index[0]),
 			index:     index,
 		}
 
@@ -534,8 +534,10 @@ func roundUpPower2(i uintptr) uintptr {
 }
 
 // log2 computes the binary logarithm of x, rounded up to the next integer
-func log2(i uintptr) (n uintptr) {
-	for p := uintptr(1); p < i; p, n = p<<1, n+1 {
+func log2(i uintptr) uintptr {
+	var n, p uintptr
+	for p = 1; p < i; p += p {
+		n++
 	}
-	return
+	return n
 }

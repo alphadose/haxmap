@@ -52,6 +52,32 @@ func TestOverwrite(t *testing.T) {
 	}
 }
 
+func TestSetUint8(t *testing.T) {
+	m := New[uint8, string]()
+
+	for i := 0; i < 10; i++ {
+		m.Set(uint8(i), strconv.Itoa(i))
+	}
+
+	for i := 1; i <= 10; i++ {
+		m.Del(uint8(i))
+	}
+
+	for i := 0; i < 10; i++ {
+		m.Set(uint8(i), strconv.Itoa(i))
+	}
+
+	for i := 0; i < 10; i++ {
+		id, ok := m.Get(uint8(i))
+		if !ok {
+			t.Error("ok should be true for item stored within the map.")
+		}
+		if id != strconv.Itoa(i) {
+			t.Error("item is not as expected.")
+		}
+	}
+}
+
 func TestSet(t *testing.T) {
 	m := New[int, string](4)
 
@@ -429,6 +455,48 @@ func TestSwap(t *testing.T) {
 		t.Error("Key doesnt exists")
 	}
 	if val != 2 {
+		t.Error("New value not set")
+	}
+}
+
+func TestUint8(t *testing.T) {
+	m := New[uint8, string](0)
+
+	m.Set(0, "cat")
+
+	val, ok := m.Get(0)
+	if !ok {
+		t.Error("Key doesnt exists")
+	}
+	if val != "cat" {
+		t.Error("New value not set")
+	}
+}
+
+func TestUint64(t *testing.T) {
+	m := New[uint64, string](0)
+
+	m.Set(0, "cat")
+
+	val, ok := m.Get(0)
+	if !ok {
+		t.Error("Key doesnt exists")
+	}
+	if val != "cat" {
+		t.Error("New value not set")
+	}
+}
+
+func TestUint32(t *testing.T) {
+	m := New[uint32, string](0)
+
+	m.Set(0, "cat")
+
+	val, ok := m.Get(0)
+	if !ok {
+		t.Error("Key doesnt exists")
+	}
+	if val != "cat" {
 		t.Error("New value not set")
 	}
 }

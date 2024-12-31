@@ -4,10 +4,12 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"unsafe"
 
 	"github.com/alphadose/haxmap"
 	"github.com/cornelk/hashmap"
 	"github.com/puzpuzpuz/xsync/v2"
+	"github.com/zeebo/xxh3"
 )
 
 const (
@@ -15,8 +17,19 @@ const (
 	mapSize         = 8
 )
 
+const sizeOfUintPtr = unsafe.Sizeof(uintptr(0))
+
+func uintptrToBytes(u *uintptr) []byte {
+	return (*[sizeOfUintPtr]byte)(unsafe.Pointer(u))[:]
+}
+func customStringHasher(s uintptr) uintptr {
+
+	return uintptr(xxh3.Hash(uintptrToBytes(&s)))
+}
+
 func setupHaxMap() *haxmap.Map[uintptr, uintptr] {
 	m := haxmap.New[uintptr, uintptr](mapSize)
+	// m.SetHasher(customStringHasher)
 	for i := uintptr(0); i < epochs; i++ {
 		m.Set(i, i)
 	}
