@@ -1,8 +1,8 @@
 module github.com/alphadose/haxmap/benchmarks
 
-go 1.19
+go 1.23
 
-replace github.com/alphadose/haxmap => ../
+replace github.com/alphadose/haxmap v0.0.0-00010101000000-000000000000 => ../
 
 require (
 	github.com/alphadose/haxmap v0.0.0-00010101000000-000000000000

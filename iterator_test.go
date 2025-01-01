@@ -12,7 +12,7 @@ func TestIterators(t *testing.T) {
 		key int
 	}
 
-	m := New[int, *Value]()
+	m := New[int, *Value](0)
 
 	itemCount := 16
 	for i := itemCount; i > 0; i-- {

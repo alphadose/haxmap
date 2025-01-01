@@ -15,7 +15,7 @@ type Animal struct {
 }
 
 func TestMapCreation(t *testing.T) {
-	m := New[int, int]()
+	m := New[int, int](0)
 	if m.Len() != 0 {
 		t.Errorf("new map should be empty but has %d items.", m.Len())
 	}
@@ -31,7 +31,7 @@ func TestMapCreation(t *testing.T) {
 
 func TestOverwrite(t *testing.T) {
 	type customUint uint
-	m := New[customUint, string]()
+	m := New[customUint, string](0)
 	key := customUint(1)
 	cat := "cat"
 	tiger := "tiger"
@@ -53,7 +53,7 @@ func TestOverwrite(t *testing.T) {
 }
 
 func TestSetUint8(t *testing.T) {
-	m := New[uint8, string]()
+	m := New[uint8, string](0)
 
 	for i := 0; i < 10; i++ {
 		m.Set(uint8(i), strconv.Itoa(i))
@@ -93,7 +93,7 @@ func TestSet(t *testing.T) {
 
 // From bug https://github.com/alphadose/haxmap/issues/33
 func TestSet2(t *testing.T) {
-	h := New[int, string]()
+	h := New[int, string](0)
 	for i := 1; i <= 10; i++ {
 		h.Set(i, strconv.Itoa(i))
 	}
@@ -115,7 +115,7 @@ func TestSet2(t *testing.T) {
 }
 
 func TestGet(t *testing.T) {
-	m := New[string, string]()
+	m := New[string, string](0)
 	cat := "cat"
 	key := "animal"
 
@@ -142,7 +142,7 @@ func TestGet(t *testing.T) {
 }
 
 func TestGrow(t *testing.T) {
-	m := New[uint, uint]()
+	m := New[uint, uint](0)
 	m.Grow(63)
 	d := m.metadata.Load()
 	log := int(math.Log2(64))
@@ -165,7 +165,7 @@ func TestGrow2(t *testing.T) {
 }
 
 func TestFillrate(t *testing.T) {
-	m := New[int, any]()
+	m := New[int, any](0)
 	for i := 0; i < 1000; i++ {
 		m.Set(i, nil)
 	}
@@ -178,7 +178,7 @@ func TestFillrate(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	m := New[int, *Animal]()
+	m := New[int, *Animal](0)
 	cat := &Animal{"cat"}
 	tiger := &Animal{"tiger"}
 
@@ -203,7 +203,7 @@ func TestDelete(t *testing.T) {
 
 // From bug https://github.com/alphadose/haxmap/issues/11
 func TestDelete2(t *testing.T) {
-	m := New[int, string]()
+	m := New[int, string](0)
 	m.Set(1, "one")
 	m.Del(1) // delegate key 1
 	if m.Len() != 0 {
@@ -219,7 +219,7 @@ func TestDelete2(t *testing.T) {
 // from https://pkg.go.dev/sync#Map.LoadOrStore
 func TestGetOrSet(t *testing.T) {
 	var (
-		m    = New[int, string]()
+		m    = New[int, string](0)
 		data = "one"
 	)
 	if val, loaded := m.GetOrSet(1, data); loaded {
@@ -235,7 +235,7 @@ func TestGetOrSet(t *testing.T) {
 }
 
 func TestForEach(t *testing.T) {
-	m := New[int, *Animal]()
+	m := New[int, *Animal](0)
 
 	m.ForEach(func(i int, a *Animal) bool {
 		t.Errorf("map should be empty but got key -> %d and value -> %#v.", i, a)
@@ -262,7 +262,7 @@ func TestForEach(t *testing.T) {
 }
 
 func TestClear(t *testing.T) {
-	m := New[int, any]()
+	m := New[int, any](0)
 	for i := 0; i < 100; i++ {
 		m.Set(i, nil)
 	}
@@ -288,7 +288,7 @@ func TestClear(t *testing.T) {
 func TestMapParallel(t *testing.T) {
 	max := 10
 	dur := 2 * time.Second
-	m := New[int, int]()
+	m := New[int, int](0)
 	do := func(t *testing.T, max int, d time.Duration, fn func(*testing.T, int)) <-chan error {
 		t.Helper()
 		done := make(chan error)
@@ -356,7 +356,7 @@ func TestMapParallel(t *testing.T) {
 }
 
 func TestMapConcurrentWrites(t *testing.T) {
-	blocks := New[string, struct{}]()
+	blocks := New[string, struct{}](0)
 
 	var wg sync.WaitGroup
 	for i := 0; i < 100; i++ {
@@ -381,7 +381,7 @@ func TestMapConcurrentWrites(t *testing.T) {
 
 // Collision test case when hash key is 0 in value for all entries
 func TestHash0Collision(t *testing.T) {
-	m := New[string, int]()
+	m := New[string, int](0)
 	staticHasher := func(key string) uintptr {
 		return 0
 	}
@@ -421,7 +421,7 @@ func TestCAS(t *testing.T) {
 	type custom struct {
 		val int
 	}
-	m := New[string, custom]()
+	m := New[string, custom](0)
 	m.Set("1", custom{val: 1})
 	if m.CompareAndSwap("1", custom{val: 420}, custom{val: 2}) {
 		t.Error("Invalid Compare and Swap")
@@ -441,7 +441,7 @@ func TestCAS(t *testing.T) {
 // https://github.com/alphadose/haxmap/issues/18
 // test swap
 func TestSwap(t *testing.T) {
-	m := New[string, int]()
+	m := New[string, int](0)
 	m.Set("1", 1)
 	val, swapped := m.Swap("1", 2)
 	if !swapped {

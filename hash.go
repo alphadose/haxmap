@@ -120,7 +120,6 @@ func rol23(x uint64) uint64 { return bits.RotateLeft64(x, 23) }
 func rol27(x uint64) uint64 { return bits.RotateLeft64(x, 27) }
 func rol31(x uint64) uint64 { return bits.RotateLeft64(x, 31) }
 
-// xxHash implementation for known key type sizes, minimal with no branching
 var (
 	// byte hasher, key size -> 1 byte
 	byteHasher = func(key uint8) (acc uint64) {
@@ -208,7 +207,7 @@ var (
 	}
 
 	stringHasher = func(key string) uint64 {
-		return (xxh3.HashString(key))
+		return xxh3.HashString(key)
 	}
 )
 

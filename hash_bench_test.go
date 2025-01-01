@@ -120,7 +120,7 @@ var stringDefaultXXHASH = func(key string) uintptr {
 func BenchmarkTestStringHash(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 
-		m := New[string, string]()
+		m := New[string, string](0)
 		for pb.Next() {
 
 			for i := 0; i < numbeF; i++ {
@@ -143,7 +143,7 @@ func BenchmarkTestStringHash(b *testing.B) {
 func BenchmarkTestStringHash2(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 
-		m := New[string, string]()
+		m := New[string, string](0)
 		m.SetHasher(stringDefaultXXHASH)
 
 		for pb.Next() {
@@ -164,7 +164,7 @@ func BenchmarkTestStringHash2(b *testing.B) {
 func BenchmarkTestStringHash3(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 
-		m := New[string, string]()
+		m := New[string, string](0)
 		m.SetHasher(stringAnotherHash)
 
 		for pb.Next() {
@@ -185,7 +185,7 @@ func BenchmarkTestStringHash3(b *testing.B) {
 func BenchmarkTestUnt8Hash(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 
-		m := New[uint8, uint8]()
+		m := New[uint8, uint8](0)
 		for pb.Next() {
 
 			for i := 0; i < numbeF; i++ {
@@ -205,7 +205,7 @@ func BenchmarkTestUnt8Hash(b *testing.B) {
 func BenchmarkTestUint8HashDefault(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 
-		m := New[uint8, uint8]()
+		m := New[uint8, uint8](0)
 		m.SetHasher(uint8HasherDefault)
 
 		for pb.Next() {
@@ -225,7 +225,7 @@ func BenchmarkTestUint8HashDefault(b *testing.B) {
 
 func BenchmarkTestUint64Hash(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
-		m := New[uint64, uint64]()
+		m := New[uint64, uint64](0)
 
 		for pb.Next() {
 			for i := 0; i < numbeF; i++ {
@@ -244,7 +244,7 @@ func BenchmarkTestUint64Hash(b *testing.B) {
 
 func BenchmarkTestUint64HashDefault(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
-		m := New[uint64, uint64]()
+		m := New[uint64, uint64](0)
 		m.SetHasher(uint64HasherDefault)
 
 		for pb.Next() {

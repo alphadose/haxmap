@@ -19,7 +19,7 @@ const (
 	maxFillRate = 50
 
 	// intSizeBytes is the size in byte of an int or uint value
-	intSizeBytes = 32 << (^uint(0) >> 63) >> 3
+	intSizeBytes = (32 << (^uint(0) >> 63)) >> 3
 )
 
 // indicates resizing operation status enums
@@ -35,10 +35,13 @@ type (
 
 	// metadata of the hashmap
 	metadata[K hashable, V any] struct {
-		index     []*element[K, V]
-		keyshifts uintptr        //  array_size - log2(array_size)
-		count     atomicUintptr  // number of filled items
-		data      unsafe.Pointer // pointer to array of map indexes
+		index []*element[K, V]
+
+		keyshifts uintptr //  array_size - log2(array_size)
+
+		count atomicUintptr // number of filled items
+
+		data unsafe.Pointer // pointer to array of map indexes
 
 		// use a struct element with generic params to enable monomorphization (generic code copy-paste) for the parent metadata struct by golang compiler leading to best performance (truly hax)
 		// else in other cases the generic params will be unnecessarily passed as function parameters everytime instead of monomorphization leading to slower performance
@@ -46,37 +49,50 @@ type (
 
 	// Map implements the concurrent hashmap
 	Map[K hashable, V any] struct {
-		hasher      func(K) uintptr
-		listHead    *element[K, V]                // Harris lock-free list of elements in ascending order of hash
-		metadata    atomicPointer[metadata[K, V]] // atomic.Pointer for safe access even during resizing
-		numItems    atomicUintptr
+		hasher func(K) uintptr
+
+		listHead *element[K, V] // Harris lock-free list of elements in ascending order of hash
+
+		metadata atomicPointer[metadata[K, V]] // atomic.Pointer for safe access even during resizing
+
+		numItems atomicUintptr
+
 		defaultSize uintptr
-		resizing    atomicUint32
+
+		resizing atomicUint32
 	}
 
 	// used in deletion of map elements
 	deletionRequest[K hashable] struct {
 		keyHash uintptr
-		key     K
+
+		key K
 	}
 )
 
 // New returns a new HashMap instance with an optional specific initialization size
-func New[K hashable, V any](size ...uintptr) *Map[K, V] {
-	m := &Map[K, V]{listHead: newListHead[K, V]()}
+func New[K hashable, V any](size uintptr) *Map[K, V] {
+	e := newListHead[K, V]()
+	m := &Map[K, V]{listHead: e}
 	m.numItems.Store(0)
-	m.defaultSize = defaultSize
-	if len(size) > 0 && size[0] > 0 {
-		m.defaultSize = size[0]
+
+	if size > 0 {
+		m.defaultSize = size
+		m.allocate(m.defaultSize)
+	} else {
+		m.defaultSize = defaultSize
+		m.allocate(m.defaultSize)
 	}
-	m.allocate(m.defaultSize)
+
 	m.setDefaultHasher()
+	// (&elementPool[K, V]{}).put(e)
 	return m
 }
 
 // Del deletes key/keys from the map
 // Bulk deletion is more efficient than deleting keys one by one
 func (m *Map[K, V]) Del(keys ...K) {
+
 	size := len(keys)
 	switch {
 	case size == 0:
@@ -93,6 +109,7 @@ func (m *Map[K, V]) Del(keys ...K) {
 			if existing.key == keys[0] {
 				if existing.remove() { // mark node for lazy removal on next pass
 					m.removeItemFromIndex(existing) // remove node from map index
+					// (&elementPool[K, V]{}).put(existing)
 				}
 				return
 			}
@@ -121,6 +138,7 @@ func (m *Map[K, V]) Del(keys ...K) {
 			if elem.keyHash == delQ[iter].keyHash && elem.key == delQ[iter].key {
 				if elem.remove() { // mark node for lazy removal on next pass
 					m.removeItemFromIndex(elem) // remove node from map index
+
 				}
 				iter++
 				elem = elem.next()
@@ -140,11 +158,10 @@ func (m *Map[K, V]) Get(key K) (value V, ok bool) {
 	// inline search
 	for elem := m.metadata.Load().indexElement(h); elem != nil && elem.keyHash <= h; elem = elem.nextPtr.Load() {
 		if elem.key == key {
-			value, ok = *elem.value.Load(), !elem.isDeleted()
-			return
+			return *elem.value.Load(), !elem.isDeleted()
 		}
 	}
-	ok = false
+
 	return
 }
 
@@ -154,7 +171,6 @@ func (m *Map[K, V]) Get(key K) (value V, ok bool) {
 func (m *Map[K, V]) Set(key K, value V) {
 	var (
 		h        = m.hasher(key)
-		valPtr   = &value
 		alloc    *element[K, V]
 		created  = false
 		data     = m.metadata.Load()
@@ -164,12 +180,12 @@ func (m *Map[K, V]) Set(key K, value V) {
 	if existing == nil || existing.keyHash > h {
 		existing = m.listHead
 	}
-	if alloc, created = existing.inject(h, key, valPtr); alloc != nil {
+	if alloc, created = existing.inject(h, key, &value); alloc != nil {
 		if created {
 			m.numItems.Add(1)
 		}
 	} else {
-		for existing = m.listHead; alloc == nil; alloc, created = existing.inject(h, key, valPtr) {
+		for existing = m.listHead; alloc == nil; alloc, created = existing.inject(h, key, &value) {
 		}
 		if created {
 			m.numItems.Add(1)
@@ -180,6 +196,7 @@ func (m *Map[K, V]) Set(key K, value V) {
 	if resizeNeeded(uintptr(len(data.index)), count) && m.resizing.CompareAndSwap(notResizing, resizingInProgress) {
 		m.grow(0) // double in size
 	}
+	return
 }
 
 // GetOrSet returns the existing value for the key if present
@@ -361,6 +378,7 @@ func (m *Map[K, V]) Clear() {
 		data:      unsafe.Pointer(&index[0]),
 		index:     index,
 	}
+
 	m.listHead.nextPtr.Store(nil)
 	m.metadata.Store(newdata)
 	m.numItems.Store(0)
@@ -433,7 +451,7 @@ func (m *Map[K, V]) removeItemFromIndex(item *element[K, V]) {
 	for {
 		data := m.metadata.Load()
 		index := item.keyHash >> data.keyshifts
-		ptr := (*unsafe.Pointer)(unsafe.Pointer(uintptr(data.data) + index*intSizeBytes))
+		ptr := (*unsafe.Pointer)(unsafe.Add((data.data), index*intSizeBytes))
 
 		next := item.next()
 		if next != nil && next.keyHash>>data.keyshifts != index {
@@ -484,11 +502,11 @@ func (m *Map[K, V]) grow(newSize uintptr) {
 // indexElement returns the index of a hash key, returns `nil` if absent
 func (md *metadata[K, V]) indexElement(hashedKey uintptr) *element[K, V] {
 	index := hashedKey >> md.keyshifts
-	ptr := (*unsafe.Pointer)(unsafe.Pointer(uintptr(md.data) + index*intSizeBytes))
+	ptr := (*unsafe.Pointer)(unsafe.Add((md.data), index*intSizeBytes))
 	item := (*element[K, V])(atomic.LoadPointer(ptr))
 	for (item == nil || hashedKey < item.keyHash || item.isDeleted()) && index > 0 {
 		index--
-		ptr = (*unsafe.Pointer)(unsafe.Pointer(uintptr(md.data) + index*intSizeBytes))
+		ptr = (*unsafe.Pointer)(unsafe.Add((md.data), index*intSizeBytes))
 		item = (*element[K, V])(atomic.LoadPointer(ptr))
 	}
 	return item
@@ -497,27 +515,28 @@ func (md *metadata[K, V]) indexElement(hashedKey uintptr) *element[K, V] {
 // addItemToIndex adds an item to the index if needed and returns the new item counter if it changed, otherwise 0
 func (md *metadata[K, V]) addItemToIndex(item *element[K, V]) uintptr {
 	index := item.keyHash >> md.keyshifts
-	ptr := (*unsafe.Pointer)(unsafe.Pointer(uintptr(md.data) + index*intSizeBytes))
-	for {
-		elem := (*element[K, V])(atomic.LoadPointer(ptr))
-		if elem == nil {
-			if atomic.CompareAndSwapPointer(ptr, nil, unsafe.Pointer(item)) {
-				return md.count.Add(1)
-			}
+	ptr := (*unsafe.Pointer)(unsafe.Add((md.data), index*intSizeBytes))
+	elem := (*element[K, V])(atomic.LoadPointer(ptr))
+	for elem == nil || item.keyHash < elem.keyHash {
+
+		if atomic.CompareAndSwapPointer(ptr, nil, unsafe.Pointer(item)) {
+			return md.count.Add(1)
+		}
+
+		if !atomic.CompareAndSwapPointer(ptr, unsafe.Pointer(elem), unsafe.Pointer(item)) {
 			continue
 		}
-		if item.keyHash < elem.keyHash {
-			if !atomic.CompareAndSwapPointer(ptr, unsafe.Pointer(elem), unsafe.Pointer(item)) {
-				continue
-			}
-		}
+
 		return 0
 	}
+	return 0
+
 }
 
 // check if resize is needed
-func resizeNeeded(length, count uintptr) bool {
-	return (count*100)/length > maxFillRate
+func resizeNeeded(currentSize, itemCount uintptr) bool {
+
+	return (itemCount*100)/currentSize > maxFillRate
 }
 
 // roundUpPower2 rounds a number to the next power of 2
@@ -534,10 +553,12 @@ func roundUpPower2(i uintptr) uintptr {
 }
 
 // log2 computes the binary logarithm of x, rounded up to the next integer
-func log2(i uintptr) uintptr {
-	var n, p uintptr
-	for p = 1; p < i; p += p {
-		n++
+func log2(i uintptr) (n uintptr) {
+	if i == 0 {
+		return 0
 	}
-	return n
+
+	for p := uintptr(1); p < i; p, n = p<<1, n+1 {
+	}
+	return
 }
