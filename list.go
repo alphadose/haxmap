@@ -14,23 +14,22 @@ const (
 // Performance improvements suggested in https://arxiv.org/pdf/2010.15755.pdf were also added
 
 // newListHead returns the new head of any list
-func newListHead[K hashable, V any]() *element[K, V] {
+func newListHead[K Hashable, V any]() *element[K, V] {
 	e := &element[K, V]{}
 	e.nextPtr.Store(nil)
 	e.value.Store(new(V))
-	// (&elementPool[K, V]{}).put(e)
 	return e
 }
 
 // a single node in the list
-type element[K hashable, V any] struct {
-	keyHash uintptr
-
+type element[K Hashable, V any] struct {
 	key K
 
-	nextPtr atomicPointer[element[K, V]]
+	keyHash uintptr
 
 	value atomicPointer[V]
+
+	nextPtr atomicPointer[element[K, V]]
 
 	deleted uint32
 }

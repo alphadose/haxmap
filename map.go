@@ -29,12 +29,12 @@ const (
 )
 
 type (
-	hashable interface {
+	Hashable interface {
 		constraints.Integer | constraints.Float | constraints.Complex | ~string | uintptr | ~unsafe.Pointer
 	}
 
 	// metadata of the hashmap
-	metadata[K hashable, V any] struct {
+	metadata[K Hashable, V any] struct {
 		index []*element[K, V]
 
 		keyshifts uintptr //  array_size - log2(array_size)
@@ -48,7 +48,7 @@ type (
 	}
 
 	// Map implements the concurrent hashmap
-	Map[K hashable, V any] struct {
+	Map[K Hashable, V any] struct {
 		hasher func(K) uintptr
 
 		listHead *element[K, V] // Harris lock-free list of elements in ascending order of hash
@@ -63,7 +63,7 @@ type (
 	}
 
 	// used in deletion of map elements
-	deletionRequest[K hashable] struct {
+	deletionRequest[K Hashable] struct {
 		keyHash uintptr
 
 		key K
@@ -71,7 +71,7 @@ type (
 )
 
 // New returns a new HashMap instance with an optional specific initialization size
-func New[K hashable, V any](size uintptr) *Map[K, V] {
+func New[K Hashable, V any](size uintptr) *Map[K, V] {
 	e := newListHead[K, V]()
 	m := &Map[K, V]{listHead: e}
 	m.numItems.Store(0)
@@ -158,10 +158,11 @@ func (m *Map[K, V]) Get(key K) (value V, ok bool) {
 	// inline search
 	for elem := m.metadata.Load().indexElement(h); elem != nil && elem.keyHash <= h; elem = elem.nextPtr.Load() {
 		if elem.key == key {
+
 			return *elem.value.Load(), !elem.isDeleted()
 		}
 	}
-
+	ok = false
 	return
 }
 
@@ -170,7 +171,8 @@ func (m *Map[K, V]) Get(key K) (value V, ok bool) {
 // then the item might show up in the map only after the resize operation is finished
 func (m *Map[K, V]) Set(key K, value V) {
 	var (
-		h        = m.hasher(key)
+		h = m.hasher(key)
+
 		alloc    *element[K, V]
 		created  = false
 		data     = m.metadata.Load()
@@ -196,7 +198,6 @@ func (m *Map[K, V]) Set(key K, value V) {
 	if resizeNeeded(uintptr(len(data.index)), count) && m.resizing.CompareAndSwap(notResizing, resizingInProgress) {
 		m.grow(0) // double in size
 	}
-	return
 }
 
 // GetOrSet returns the existing value for the key if present
@@ -552,13 +553,31 @@ func roundUpPower2(i uintptr) uintptr {
 	return i
 }
 
+var tab64 = [64]uintptr{
+	63, 0, 58, 1, 59, 47, 53, 2,
+	60, 39, 48, 27, 54, 33, 42, 3,
+	61, 51, 37, 40, 49, 18, 28, 20,
+	55, 30, 34, 11, 43, 14, 22, 4,
+	62, 57, 46, 52, 38, 26, 32, 41,
+	50, 36, 17, 19, 29, 10, 13, 21,
+	56, 45, 25, 31, 35, 16, 9, 12,
+	44, 24, 15, 8, 23, 7, 6, 5,
+}
+
 // log2 computes the binary logarithm of x, rounded up to the next integer
 func log2(i uintptr) (n uintptr) {
 	if i == 0 {
 		return 0
 	}
 
-	for p := uintptr(1); p < i; p, n = p<<1, n+1 {
-	}
-	return
+	i |= i >> 1
+	i |= i >> 2
+	i |= i >> 4
+	i |= i >> 8
+	i |= i >> 16
+	i |= i >> 32
+
+	// Use the lookup table to determine the position of the highest bit.
+	return uintptr(tab64[((i-(i>>1))*0x07EDD5E59A4E28C2)>>58])
+
 }

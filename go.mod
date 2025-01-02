@@ -1,6 +1,5 @@
 module github.com/alphadose/haxmap
-
-go 1.18
+go 1.23
 
 require (
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect

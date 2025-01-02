@@ -20,18 +20,19 @@ var key = ptr(&[...]uint8{
 	0x45, 0xcb, 0x3a, 0x8f, 0x95, 0x16, 0x04, 0x28 /* 184 */, 0xaf, 0xd7, 0xfb, 0xca, 0xbb, 0x4b, 0x40, 0x7e, /* 192 */
 })
 
-type Uint128 struct {
-	Hi, Lo uint64
-}
+const (
+	_wyp0 = 0xa0761d6478bd642f
+	_wyp1 = 0xe7037ed1a0b428db
+	_wyp2 = 0x8ebc6af09c88c6e3
+	_wyp3 = 0x589965cc75374cc3
+	_wyp4 = 0x1d8e4e27c47d124f
+)
 
-// Bytes returns the uint128 as an array of bytes in canonical form (big-endian encoded).
-func (u Uint128) Bytes() [16]byte {
-	return [16]byte{
-		byte(u.Hi >> 0x38), byte(u.Hi >> 0x30), byte(u.Hi >> 0x28), byte(u.Hi >> 0x20),
-		byte(u.Hi >> 0x18), byte(u.Hi >> 0x10), byte(u.Hi >> 0x08), byte(u.Hi),
-		byte(u.Lo >> 0x38), byte(u.Lo >> 0x30), byte(u.Lo >> 0x28), byte(u.Lo >> 0x20),
-		byte(u.Lo >> 0x18), byte(u.Lo >> 0x10), byte(u.Lo >> 0x08), byte(u.Lo),
-	}
+var _wyp_a = [4]uint64{
+	0x2d358dccaa6c78a5,
+	0x8bb84b93962eacc9,
+	0x4b33a62ed433d4a3,
+	0x4d5a2da51de1aa47,
 }
 
 type (
@@ -41,6 +42,95 @@ type (
 type str struct {
 	p ptr
 	l uint
+}
+
+//
+// //go:nosplit
+// //go:nocheckptr
+// func noescape(up ptr) ptr {
+// 	x := uintptr(up)
+// 	return ptr(x ^ 0)
+// }
+
+//go:nosplit
+//go:nocheckptr
+func off(p ptr, n uintptr) ptr { return ptr(uintptr(p) + n) }
+
+func _wymix(a, key uint64) uint64 {
+	return _wmum(a^key^_wyp0, key^_wyp1)
+}
+
+func _wx10(key uint64) uint64 {
+	key += _wyp0
+	return _wmum(uint64(key)^_wyp1, uint64(key))
+
+}
+func _wx64(key uint64) uint64 { // 8 byte
+	p := ptr(&key)
+
+	return _wmum(_wmum(_wyr4(off(p, 0x00))^key^_wyp0, _wyr4(off(p, 0))^key^_wyp1)^key, 8^_wyp4)
+}
+
+func _wx8(key uint8) uint64 { // 1 byte
+	p := ptr(&key)
+
+	key64 := uint64(key)
+
+	return _wmum(_wmum(_wyr1(p)^key64^_wyp0, key64^_wyp1)^key64, 1^_wyp4)
+}
+
+func _wx16(key uint16) uint64 { // 2 bytes
+	p := ptr(&key)
+
+	key64 := uint64(key)
+
+	return _wmum(_wmum(_wyr1(off(p, 0x00))^key64^_wyp0, _wyr1(off(p, 0x00))^key64^_wyp1)^key64, 2^_wyp4)
+}
+
+func _wx32(key uint32) uint64 { // 4 byte
+	p := ptr(&key)
+
+	key64 := uint64(key)
+
+	return _wmum(_wmum(_wyr2(off(p, 0x00))^key64^_wyp0, _wyr2(off(p, 0x00))^key64^_wyp1)^key64, 4^_wyp4)
+
+}
+
+//go:nocheckptr
+func _wyr4(p ptr) uint64 {
+	// b := ()(p)
+
+	v := *(*[4]byte)(p)
+
+	// v = uint32(b[0])<<24 | uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3])
+
+	return uint64(uint32(v[0]) | uint32(v[1])<<8 | uint32(v[2])<<16 | uint32(v[3])<<24)
+}
+
+//go:nocheckptr
+func _wyr2(p ptr) uint64 {
+	b := (*[2]byte)(p)
+	return uint64(uint16(b[0]) | uint16(b[1])<<8)
+}
+
+//go:nocheckptr
+func _wyr1(p ptr) uint64 {
+	return uint64(*(*byte)(p))
+}
+
+//go:nocheckptr
+func _wyr3(p ptr, k uintptr) uint64 {
+	b0 := uint64(*(*byte)(p))
+	b1 := uint64(*(*byte)(off(p, k>>1)))
+	b2 := uint64(*(*byte)(off(p, k-1)))
+	return b0<<16 | b1<<8 | b2
+}
+
+//go:nocheckptr
+func _wyr8(p ptr) uint64 {
+	b := (*[8]byte)(p)
+	return uint64(uint32(b[0])|uint32(b[1])<<8|uint32(b[2])<<16|uint32(b[3])<<24)<<32 |
+		uint64(uint32(b[4])|uint32(b[5])<<8|uint32(b[6])<<16|uint32(b[7])<<24)
 }
 
 func readU8(p ptr, o uintptr) uint8 {
@@ -58,8 +148,12 @@ func readU32(p ptr, o uintptr) uint32 {
 }
 
 func readU64(p ptr, o uintptr) uint64 {
-	b := (*[8]byte)(ptr(uintptr(p) + o))
-	return Uint64(b)
+	return uint64(readU32(p, o)) | uint64(readU32(p, o+4))<<32
+}
+
+func read64_m(u uint64) uint64 {
+	return bits.RotateLeft64(u, 31)
+
 }
 
 func Uint16(b *[2]byte) uint16 {
@@ -87,28 +181,7 @@ func writeU64(p ptr, o uintptr, v uint64) {
 	b[7] = byte(v >> 56)
 }
 
-const secretSize = 192
-
-func initSecret(secret unsafe.Pointer, seed uint64) {
-	for i := uintptr(0); i < secretSize/16; i++ {
-		lo := readU64(key, 16*i) + seed
-		hi := readU64(key, 16*i+8) - seed
-		writeU64(secret, 16*i, lo)
-		writeU64(secret, 16*i+8, hi)
-	}
-}
-
-func xxh64AvalancheSmall(x uint64) uint64 {
-	// x ^= x >> 33                    // x must be < 32 bits
-	// x ^= u64(key32_000 ^ key32_004) // caller must do this
-	x *= prime2
-	x ^= x >> 29
-	x *= prime3
-	x ^= x >> 32
-	return x
-}
-
-func xxhAvalancheSmall(x uint64) uint64 {
+func AvalancheSmall(x uint64) uint64 {
 	x ^= x >> 33
 	x *= prime2
 	x ^= x >> 29
@@ -117,7 +190,7 @@ func xxhAvalancheSmall(x uint64) uint64 {
 	return x
 }
 
-func xxh64AvalancheFull(x uint64) uint64 {
+func AvalancheFull(x uint64) uint64 {
 	x ^= x >> 33
 	x *= prime2
 	x ^= x >> 29
@@ -126,23 +199,20 @@ func xxh64AvalancheFull(x uint64) uint64 {
 	return x
 }
 
-func xxh3Avalanche(x uint64) uint64 {
+func Avalanche(x uint64) uint64 {
 	x ^= x >> 37
 	x *= 0x165667919e3779f9
 	x ^= x >> 32
 	return x
 }
 
-func rrmxmx(h64 uint64, len uint64) uint64 {
-	h64 ^= bits.RotateLeft64(h64, 49) ^ bits.RotateLeft64(h64, 24)
-	h64 *= 0x9fb21c651e98df25
-	h64 ^= (h64 >> 35) + len
-	h64 *= 0x9fb21c651e98df25
-	h64 ^= (h64 >> 28)
-	return h64
-}
+func _wmum(x, y uint64) uint64 {
 
-func mulFold64(x, y uint64) uint64 {
 	hi, lo := bits.Mul64(x, y)
 	return hi ^ lo
+}
+
+func _wyrot(x uint64) uint64 {
+
+	return (x >> 32) | (x << 32)
 }

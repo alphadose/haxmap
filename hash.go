@@ -28,68 +28,6 @@ const (
 	prime32_1 = 2654435761
 	prime32_2 = 2246822519
 	prime32_3 = 3266489917
-
-	key64_000 uint64 = 0xbe4ba423396cfeb8
-	key64_008 uint64 = 0x1cad21f72c81017c
-	key64_016 uint64 = 0xdb979083e96dd4de
-	key64_024 uint64 = 0x1f67b3b7a4a44072
-	key64_032 uint64 = 0x78e5c0cc4ee679cb
-	key64_040 uint64 = 0x2172ffcc7dd05a82
-	key64_048 uint64 = 0x8e2443f7744608b8
-	key64_056 uint64 = 0x4c263a81e69035e0
-	key64_064 uint64 = 0xcb00c391bb52283c
-	key64_072 uint64 = 0xa32e531b8b65d088
-	key64_080 uint64 = 0x4ef90da297486471
-	key64_088 uint64 = 0xd8acdea946ef1938
-	key64_096 uint64 = 0x3f349ce33f76faa8
-	key64_104 uint64 = 0x1d4f0bc7c7bbdcf9
-	key64_112 uint64 = 0x3159b4cd4be0518a
-	key64_120 uint64 = 0x647378d9c97e9fc8
-	key64_128 uint64 = 0xc3ebd33483acc5ea
-	key64_136 uint64 = 0xeb6313faffa081c5
-	key64_144 uint64 = 0x49daf0b751dd0d17
-	key64_152 uint64 = 0x9e68d429265516d3
-	key64_160 uint64 = 0xfca1477d58be162b
-	key64_168 uint64 = 0xce31d07ad1b8f88f
-	key64_176 uint64 = 0x280416958f3acb45
-	key64_184 uint64 = 0x7e404bbbcafbd7af
-
-	key64_103 uint64 = 0x4f0bc7c7bbdcf93f
-	key64_111 uint64 = 0x59b4cd4be0518a1d
-	key64_119 uint64 = 0x7378d9c97e9fc831
-	key64_127 uint64 = 0xebd33483acc5ea64
-
-	key64_121 uint64 = 0xea647378d9c97e9f
-	key64_129 uint64 = 0xc5c3ebd33483acc5
-	key64_137 uint64 = 0x17eb6313faffa081
-	key64_145 uint64 = 0xd349daf0b751dd0d
-	key64_153 uint64 = 0x2b9e68d429265516
-	key64_161 uint64 = 0x8ffca1477d58be16
-	key64_169 uint64 = 0x45ce31d07ad1b8f8
-	key64_177 uint64 = 0xaf280416958f3acb
-
-	key64_011 = 0x6dd4de1cad21f72c
-	key64_019 = 0xa44072db979083e9
-	key64_027 = 0xe679cb1f67b3b7a4
-	key64_035 = 0xd05a8278e5c0cc4e
-	key64_043 = 0x4608b82172ffcc7d
-	key64_051 = 0x9035e08e2443f774
-	key64_059 = 0x52283c4c263a81e6
-	key64_067 = 0x65d088cb00c391bb
-
-	key64_117 = 0xd9c97e9fc83159b4
-	key64_125 = 0x3483acc5ea647378
-	key64_133 = 0xfaffa081c5c3ebd3
-	key64_141 = 0xb751dd0d17eb6313
-	key64_149 = 0x29265516d349daf0
-	key64_157 = 0x7d58be162b9e68d4
-	key64_165 = 0x7ad1b8f88ffca147
-	key64_173 = 0x958f3acb45ce31d0
-
-	key32_000 uint32 = 0xbe4ba423
-	key32_004 uint32 = 0x396cfeb8
-	key32_008 uint32 = 0x1cad21f7
-	key32_012 uint32 = 0x2c81017c
 )
 
 var prime1v = prime1
@@ -122,31 +60,16 @@ func rol31(x uint64) uint64 { return bits.RotateLeft64(x, 31) }
 
 var (
 	// byte hasher, key size -> 1 byte
-	byteHasher = func(key uint8) (acc uint64) {
-		acc = uint64(key)
-		acc = acc*(1<<24+1<<16+1) + 1<<8
-		acc ^= uint64(key32_000 ^ key32_004)
-
-		return xxhAvalancheSmall(acc)
-	}
-
-	// word hasher, key size -> 2 bytes
-	wordHasher = func(key uint16) (acc uint64) {
-		key = readU16(ptr(&key), 0)
-		acc = uint64(key)*(1<<24+1)>>8 + 2<<8
-
-		acc ^= uint64(key32_000 ^ key32_004)
-
-		return xxhAvalancheSmall(acc)
+	byteHasher = func(key uint8) uintptr {
+		return uintptr(_wx8(key))
+	} // word hasher, key size -> 2 bytes
+	wordHasher = func(key uint16) uintptr {
+		return uintptr(_wx16(key))
 	}
 
 	// dword hasher, key size -> 4 bytes
-	dwordHasher = func(key uint32) (acc uint64) {
-		key = readU32(ptr(&key), 0)
-		input2 := readU32(ptr(&key), uintptr(key)-4)
-		acc = uint64(input2) + uint64(key)<<32
-		acc = acc ^ (key64_008 ^ key64_016)
-		return rrmxmx(acc, uint64(key))
+	dwordHasher = func(key uint32) uintptr {
+		return uintptr(_wx32(key))
 	}
 
 	// separate dword hasher for float32 type
@@ -166,15 +89,9 @@ var (
 	}
 
 	// qword hasher, key size -> 8 bytes
-	qwordHasher = func(key uint64) (acc uint64) {
-		inputlo := readU64(ptr(&key), 0) ^ (key64_024 ^ key64_032)
-		inputhi := bits.ReverseBytes64(key) ^ key64_040
-		folded := mulFold64(inputlo, inputhi)
-
-		acc = xxh3Avalanche(inputlo + inputhi + folded)
-		return acc
+	qwordHasher = func(key uint64) uintptr {
+		return uintptr((_wx64(key)))
 	}
-
 	// separate qword hasher for float64 type
 	// for reason see definition of float32Hasher on line 127
 	float64Hasher = func(key float64) uintptr {
@@ -206,8 +123,8 @@ var (
 		return uintptr(h)
 	}
 
-	stringHasher = func(key string) uint64 {
-		return xxh3.HashString(key)
+	stringHasher = func(key string) uintptr {
+		return uintptr(xxh3.HashString(key))
 	}
 )
 
@@ -215,14 +132,14 @@ func (m *Map[K, V]) setDefaultHasher() {
 	// default hash functions
 	switch reflect.TypeOf(*new(K)).Kind() {
 	case reflect.String:
-		// use  xxHash3 algorithm for key of any size for golang string data type
 		m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&stringHasher))
-
+		// use default xxHash algorithm for key of any size for golang string data type
 	case reflect.Int, reflect.Uint, reflect.Uintptr, reflect.UnsafePointer:
 		switch intSizeBytes {
 		case 2:
 			// word hasher
 			m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&wordHasher))
+
 		case 4:
 			// dword hasher
 			m.hasher = *(*func(K) uintptr)(unsafe.Pointer(&dwordHasher))
@@ -286,7 +203,7 @@ func (m *Map[K, V]) setDefaultHasher() {
 			return uintptr(h)
 		}
 	default:
-		panic("unsupported key type")
+		return
 
 	}
 }

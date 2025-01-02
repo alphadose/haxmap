@@ -500,3 +500,96 @@ func TestUint32(t *testing.T) {
 		t.Error("New value not set")
 	}
 }
+
+func TestUintptr(t *testing.T) {
+	m := New[uintptr, string](0)
+
+	m.Set(0, "cat")
+
+	val, ok := m.Get(0)
+	if !ok {
+		t.Error("Key doesnt exists")
+	}
+	if val != "cat" {
+		t.Error("New value not set")
+	}
+
+}
+
+func TestString(t *testing.T) {
+	m := New[string, string](0)
+
+	m.Set("1", "cat")
+
+	val, ok := m.Get("1")
+	if !ok {
+		t.Error("Key doesnt exists")
+	}
+	if val != "cat" {
+		t.Error("New value not set")
+	}
+
+}
+
+func TestHashStability(t *testing.T) {
+	m := New[string, string](0)
+	key := "stability_test"
+	expectedValue := "value"
+	m.Set(key, expectedValue)
+
+	val, ok := m.Get(key)
+	if !ok {
+		t.Errorf("Expected key %s to exist in the map", key)
+	}
+	if val != expectedValue {
+		t.Errorf("Expected value %s for key %s, got %s", expectedValue, key, val)
+	}
+}
+
+func TestHashCollision(t *testing.T) {
+	m := New[string, string](0)
+
+	key1 := "collision_key_1"
+	key2 := "collision_key_2"
+
+	m.Set(key1, "value1")
+	m.Set(key2, "value2")
+
+	val1, ok1 := m.Get(key1)
+	if !ok1 || val1 != "value1" {
+		t.Errorf("Expected value for %s to be 'value1', got %v", key1, val1)
+	}
+
+	val2, ok2 := m.Get(key2)
+	if !ok2 || val2 != "value2" {
+		t.Errorf("Expected value for %s to be 'value2', got %v", key2, val2)
+	}
+}
+
+func TestHashUinptrCollision(t *testing.T) {
+	m := New[uintptr, int](0)
+	staticHasher := func(key uintptr) uintptr {
+		return 0
+	}
+	m.SetHasher(staticHasher)
+	m.Set(1, 1)
+	m.Set(2, 2)
+	_, ok := m.Get(1)
+	if !ok {
+		t.Error("1 not found")
+	}
+	_, ok = m.Get(2)
+	if !ok {
+		t.Error("2 not found")
+	}
+}
+
+func TestMapLargeLoad(t *testing.T) {
+	m := New[uintptr, int](0)
+	for i := 0; i < 1000000; i++ {
+		m.Set(uintptr(i), i)
+	}
+	if value, ok := m.Get(999999); !ok || value != 999999 {
+		t.Errorf("Expected 999999, got %v", value)
+	}
+}
