@@ -15,7 +15,7 @@ const (
 
 // newListHead returns the new head of any list
 func newListHead[K Hashable, V any]() *element[K, V] {
-	e := &element[K, V]{}
+	e := &element[K, V]{keyHash: 0, key: *new(K)}
 	e.nextPtr.Store(nil)
 	e.value.Store(new(V))
 	return e
