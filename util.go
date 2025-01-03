@@ -56,19 +56,12 @@ type str struct {
 //go:nocheckptr
 func off(p ptr, n uintptr) ptr { return ptr(uintptr(p) + n) }
 
-func _wymix(a, key uint64) uint64 {
-	return _wmum(a^key^_wyp0, key^_wyp1)
-}
-
-func _wx10(key uint64) uint64 {
-	key += _wyp0
-	return _wmum(uint64(key)^_wyp1, uint64(key))
-
-}
 func _wx64(key uint64) uint64 { // 8 byte
 	p := ptr(&key)
 
-	return _wmum(_wmum(_wyr4(off(p, 0x00))^key^_wyp0, _wyr4(off(p, 0))^key^_wyp1)^key, 8^_wyp4)
+	var a = _wyr4(p)
+
+	return _wmum(_wmum(a^key^_wyp0, a^key^_wyp1)^key, 8^_wyp4)
 }
 
 func _wx8(key uint8) uint64 { // 1 byte
@@ -76,7 +69,9 @@ func _wx8(key uint8) uint64 { // 1 byte
 
 	key64 := uint64(key)
 
-	return _wmum(_wmum(_wyr1(p)^key64^_wyp0, key64^_wyp1)^key64, 1^_wyp4)
+	var a = _wyr1(p)
+
+	return _wmum(_wmum(a^key64^_wyp0, key64^_wyp1)^key64, 1^_wyp4)
 }
 
 func _wx16(key uint16) uint64 { // 2 bytes
@@ -84,15 +79,18 @@ func _wx16(key uint16) uint64 { // 2 bytes
 
 	key64 := uint64(key)
 
-	return _wmum(_wmum(_wyr1(off(p, 0x00))^key64^_wyp0, _wyr1(off(p, 0x00))^key64^_wyp1)^key64, 2^_wyp4)
+	var a = _wyr2(p)
+
+	return _wmum(_wmum(a^key64^_wyp0, a^key64^_wyp1)^key64, 2^_wyp4)
 }
 
 func _wx32(key uint32) uint64 { // 4 byte
 	p := ptr(&key)
 
 	key64 := uint64(key)
+	a := _wyr4(p)
 
-	return _wmum(_wmum(_wyr2(off(p, 0x00))^key64^_wyp0, _wyr2(off(p, 0x00))^key64^_wyp1)^key64, 4^_wyp4)
+	return _wmum(_wmum(a^key64^_wyp0, a^key64^_wyp1)^key64, 4^_wyp4)
 
 }
 
