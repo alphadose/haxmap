@@ -59,7 +59,7 @@ func off(p ptr, n uintptr) ptr { return ptr(uintptr(p) + n) }
 func _wx64(key uint64) uint64 { // 8 byte
 	p := ptr(&key)
 
-	var a = _wyr4(p)
+	var a = _wyr8(p)
 
 	return _wmum(_wmum(a^key^_wyp0, a^key^_wyp1)^key, 8^_wyp4)
 }
@@ -98,11 +98,11 @@ func _wx32(key uint32) uint64 { // 4 byte
 func _wyr4(p ptr) uint64 {
 	// b := ()(p)
 
-	v := *(*[4]byte)(p)
+	q := *(*[4]byte)(p)
 
 	// v = uint32(b[0])<<24 | uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3])
 
-	return uint64(uint32(v[0]) | uint32(v[1])<<8 | uint32(v[2])<<16 | uint32(v[3])<<24)
+	return uint64(uint32(q[0]) | uint32(q[1])<<8 | uint32(q[2])<<16 | uint32(q[3])<<24)
 }
 
 //go:nocheckptr
@@ -126,9 +126,8 @@ func _wyr3(p ptr, k uintptr) uint64 {
 
 //go:nocheckptr
 func _wyr8(p ptr) uint64 {
-	b := (*[8]byte)(p)
-	return uint64(uint32(b[0])|uint32(b[1])<<8|uint32(b[2])<<16|uint32(b[3])<<24)<<32 |
-		uint64(uint32(b[4])|uint32(b[5])<<8|uint32(b[6])<<16|uint32(b[7])<<24)
+	q := (*[8]byte)(p)
+	return uint64(q[0]) | uint64(q[1])<<8 | uint64(q[2])<<16 | uint64(q[3])<<24 | uint64(q[4])<<32 | uint64(q[5])<<40 | uint64(q[6])<<48 | uint64(q[7])<<56
 }
 
 func readU8(p ptr, o uintptr) uint8 {
