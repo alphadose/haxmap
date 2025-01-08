@@ -43,7 +43,8 @@ func (self *element[K, V]) next() *element[K, V] {
 			return nextElement
 		}
 
-		if self.nextPtr.CompareAndSwap(nextElement, nextElement.nextPtr.Load()) {
+		nextNext := nextElement.nextPtr.Load()
+		if self.nextPtr.CompareAndSwap(nextElement, nextNext) {
 			continue
 		}
 	}
@@ -60,9 +61,7 @@ func (self *element[K, V]) addBefore(allocatedElement, before *element[K, V]) bo
 
 // inject updates an existing value in the list if present or adds a new entry
 func (self *element[K, V]) inject(c uintptr, key K, value *V) (alloc *element[K, V], _ bool) {
-	var (
-		left, curr, right = self.search(c, key)
-	)
+	left, curr, right := self.search(c, key)
 	if curr != nil {
 		curr.value.Store(value)
 		return curr, false
@@ -70,7 +69,8 @@ func (self *element[K, V]) inject(c uintptr, key K, value *V) (alloc *element[K,
 	if left != nil {
 		alloc = &element[K, V]{keyHash: c, key: key}
 		alloc.value.Store(value)
-		if left.addBefore(alloc, right) {
+		alloc.nextPtr.Store(right)
+		if left.nextPtr.CompareAndSwap(right, alloc) {
 			return alloc, true
 		}
 	}

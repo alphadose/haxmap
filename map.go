@@ -2,6 +2,7 @@ package haxmap
 
 import (
 	"encoding/json"
+	"math/bits"
 	"reflect"
 	"strconv"
 	"sync/atomic"
@@ -516,22 +517,22 @@ func (md *metadata[K, V]) indexElement(hashedKey uintptr) *element[K, V] {
 // addItemToIndex adds an item to the index if needed and returns the new item counter if it changed, otherwise 0
 func (md *metadata[K, V]) addItemToIndex(item *element[K, V]) uintptr {
 	index := item.keyHash >> md.keyshifts
-	ptr := (*unsafe.Pointer)(unsafe.Add((md.data), index*intSizeBytes))
-	elem := (*element[K, V])(atomic.LoadPointer(ptr))
-	for elem == nil || item.keyHash < elem.keyHash {
-
-		if atomic.CompareAndSwapPointer(ptr, nil, unsafe.Pointer(item)) {
-			return md.count.Add(1)
-		}
-
-		if !atomic.CompareAndSwapPointer(ptr, unsafe.Pointer(elem), unsafe.Pointer(item)) {
+	ptr := (*unsafe.Pointer)(unsafe.Pointer(uintptr(md.data) + index*intSizeBytes))
+	for {
+		elem := (*element[K, V])(atomic.LoadPointer(ptr))
+		if elem == nil {
+			if atomic.CompareAndSwapPointer(ptr, nil, unsafe.Pointer(item)) {
+				return md.count.Add(1)
+			}
 			continue
 		}
-
+		if item.keyHash < elem.keyHash {
+			if !atomic.CompareAndSwapPointer(ptr, unsafe.Pointer(elem), unsafe.Pointer(item)) {
+				continue
+			}
+		}
 		return 0
 	}
-	return 0
-
 }
 
 // check if resize is needed
@@ -542,15 +543,8 @@ func resizeNeeded(currentSize, itemCount uintptr) bool {
 
 // roundUpPower2 rounds a number to the next power of 2
 func roundUpPower2(i uintptr) uintptr {
-	i--
-	i |= i >> 1
-	i |= i >> 2
-	i |= i >> 4
-	i |= i >> 8
-	i |= i >> 16
-	i |= i >> 32
-	i++
-	return i
+	shift := bits.Len(uint(i))
+	return uintptr(1) << (shift & (intSizeBytes*8 - 1))
 }
 
 var tab64 = [64]uintptr{
