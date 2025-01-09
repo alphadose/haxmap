@@ -2,7 +2,6 @@ package haxmap
 
 import (
 	"encoding/json"
-	"math/bits"
 	"reflect"
 	"strconv"
 	"sync/atomic"
@@ -543,8 +542,15 @@ func resizeNeeded(currentSize, itemCount uintptr) bool {
 
 // roundUpPower2 rounds a number to the next power of 2
 func roundUpPower2(i uintptr) uintptr {
-	shift := bits.Len(uint(i))
-	return uintptr(1) << (shift & (intSizeBytes*8 - 1))
+	i--
+	i |= i >> 1
+	i |= i >> 2
+	i |= i >> 4
+	i |= i >> 8
+	i |= i >> 16
+	i |= i >> 32
+	i++
+	return i
 }
 
 var tab64 = [64]uintptr{
