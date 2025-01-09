@@ -1,8 +1,9 @@
 package haxmap
 
-import "sync/atomic"
+import (
+	"sync/atomic"
+)
 
-// states denoting whether a node is deleted or not
 const (
 	notDeleted uint32 = iota
 	deleted
@@ -12,7 +13,7 @@ const (
 // Performance improvements suggested in https://arxiv.org/pdf/2010.15755.pdf were also added
 
 // newListHead returns the new head of any list
-func newListHead[K hashable, V any]() *element[K, V] {
+func newListHead[K Hashable, V any]() *element[K, V] {
 	e := &element[K, V]{keyHash: 0, key: *new(K)}
 	e.nextPtr.Store(nil)
 	e.value.Store(new(V))
@@ -20,7 +21,7 @@ func newListHead[K hashable, V any]() *element[K, V] {
 }
 
 // a single node in the list
-type element[K hashable, V any] struct {
+type element[K Hashable, V any] struct {
 	keyHash uintptr
 	key     K
 	// The next element in the list. If this pointer has the marked flag set it means THIS element, not the next one, is deleted.

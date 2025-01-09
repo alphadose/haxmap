@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/alphadose/haxmap"
+
 	"github.com/cornelk/hashmap"
 	"github.com/puzpuzpuz/xsync/v2"
 )
@@ -17,6 +18,7 @@ const (
 
 func setupHaxMap() *haxmap.Map[uintptr, uintptr] {
 	m := haxmap.New[uintptr, uintptr](mapSize)
+	// m.SetHasher(customStringHasher)
 	for i := uintptr(0); i < epochs; i++ {
 		m.Set(i, i)
 	}
